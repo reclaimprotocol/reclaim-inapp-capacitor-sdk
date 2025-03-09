@@ -1,0 +1,10 @@
+{
+  "appId": "org.reclaimprotocol.example",
+  "appName": "example-app",
+  "webDir": "dist",
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false
+    }
+  }
+}
