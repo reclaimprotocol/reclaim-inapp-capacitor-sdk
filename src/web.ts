@@ -1,10 +1,11 @@
 import { WebPlugin } from '@capacitor/core';
-import type { 
-  Overrides, 
-  ReclaimInAppCapacitorSdkPlugin, 
-  Request, 
-  Response
- } from './definitions';
+import type {
+  Overrides,
+  ReclaimInAppCapacitorSdkPlugin,
+  Request,
+  Response,
+  VerificationOptionsOptional
+} from './definitions';
 
 export class ReclaimInAppCapacitorSdkWeb extends WebPlugin implements ReclaimInAppCapacitorSdkPlugin {
   startVerification(_: Request): Promise<Response> {
@@ -19,10 +20,13 @@ export class ReclaimInAppCapacitorSdkWeb extends WebPlugin implements ReclaimInA
   clearAllOverrides(): Promise<void> {
     throw new Error('Method not implemented.');
   }
+  setVerificationOptions(_: VerificationOptionsOptional): Promise<void> {
+    throw new Error('Method not implemented.');
+  }
   reply(_: { replyId: string, reply: boolean }): void {
     throw new Error('Method not implemented.');
   }
-  replyWithProviderInformation(_: { replyId: string, providerInformation: string }): void {
+  replyWithString(_: { replyId: string; value: string; }): void {
     throw new Error('Method not implemented.');
   }
   ping(): Promise<{ value: boolean }> {

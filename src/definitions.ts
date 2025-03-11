@@ -317,12 +317,30 @@ export interface ProviderInformationRequest {
   readonly replyId: string;
 }
 
+export interface VerificationOptions {
+  canDeleteCookiesBeforeVerificationStarts: boolean;
+  canUseAttestorAuthenticationRequest: boolean;
+}
+
+export interface VerificationOptionsOptional {
+  options?: VerificationOptions | null;
+}
+
+export interface ReclaimAttestorAuthRequest {
+  reclaimHttpProviderJsonString: string;
+  /**
+   * internal
+   */
+  readonly replyId: string;
+}
+
 export interface ReclaimInAppCapacitorSdkPlugin extends Plugin {
   startVerification(request: Request): Promise<Response>;
   startVerificationFromUrl(requestUrl: { value: string }): Promise<Response>;
   setOverrides(overrides: Overrides): Promise<void>;
   clearAllOverrides(): Promise<void>;
+  setVerificationOptions(args: VerificationOptionsOptional): Promise<void>;
   reply(args: { replyId: string, reply: boolean }): void;
-  replyWithProviderInformation(args: { replyId: string, providerInformation: string }): void;
+  replyWithString(args: { replyId: string, value: string }): void;
   ping(): Promise<{ value: boolean }>;
 }

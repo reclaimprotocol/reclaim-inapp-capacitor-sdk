@@ -10,8 +10,11 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import org.json.JSONObject
+import org.reclaimprotocol.inapp_sdk.ReclaimOverrides
+import org.reclaimprotocol.inapp_sdk.ReclaimSessionStatus
 import org.reclaimprotocol.inapp_sdk.ReclaimVerification
 import java.lang.Exception
+import java.util.UUID
 
 @CapacitorPlugin(name = "ReclaimInAppCapacitorSdk")
 class ReclaimInAppCapacitorSdkPlugin : Plugin() {
@@ -24,7 +27,7 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
     private val _applicationContext: Context
         get() = context.applicationContext
 
-    private fun runOnUiThreadQueue(callback: () -> Unit) {
+    private fun runOnUiQueueThread(callback: () -> Unit) {
         val handler = Handler(_applicationContext.mainLooper)
         handler.post { callback() }
     }
@@ -71,7 +74,7 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
         val handler = ReclaimVerificationResultHandlerImpl(call)
         val request = call.data
 
-        runOnUiThreadQueue {
+        runOnUiQueueThread {
             val appId = getString(request, "appId")
             val secret = getString(request, "secret")
             val verificationRequest: ReclaimVerification.Request
@@ -129,27 +132,128 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
 
     @PluginMethod
     fun startVerificationFromUrl(call: PluginCall) {
-        call.resolve()
+        Log.d(NAME, "startVerificationFromUrl")
+        val requestUrl = call.getString("value")
+        if (requestUrl == null) {
+            Log.d(NAME, "no request url. rejecting.")
+
+            call.reject("requestUrl is null", IllegalArgumentException("Request url is null"))
+            return
+        }
+        val handler = ReclaimVerificationResultHandlerImpl(call)
+        runOnUiQueueThread {
+            ReclaimVerification.startVerificationFromUrl(
+                context = _applicationContext, requestUrl = requestUrl, handler = handler
+            )
+        }
     }
 
     @PluginMethod
     fun setOverrides(call: PluginCall) {
-        call.resolve()
+        val overrides = call.data
+        return setOverrides(
+            provider = getMap(overrides, "provider"),
+            featureOptions = getMap(overrides, "featureOptions"),
+            logConsumer = getMap(overrides, "logConsumer"),
+            sessionManagement = getMap(overrides, "sessionManagement"),
+            appInfo = getMap(overrides, "appInfo"),
+            capabilityAccessToken = getString(overrides, "capabilityAccessToken"),
+            call,
+        )
     }
 
     @PluginMethod
     fun clearAllOverrides(call: PluginCall) {
-        call.resolve()
+        runOnUiQueueThread {
+            ReclaimVerification.clearAllOverrides(
+                context = _applicationContext,
+            ) { result ->
+                result.onSuccess {
+                    call.resolve(null)
+                }.onFailure { error ->
+                    onPlatformException(call, error)
+                }
+            }
+        }
     }
 
+    @PluginMethod
+    fun setVerificationOptions(call: PluginCall) {
+        val inputOptions = getMap(call.data, "options")
+        var options:  ReclaimVerification.VerificationOptions? = null
+        if (inputOptions != null) {
+            val canUseAttestorAuthRequestProvider = getBoolean(inputOptions, "canUseAttestorAuthenticationRequest") == true;
+            options = ReclaimVerification.VerificationOptions(
+                canDeleteCookiesBeforeVerificationStarts = getBoolean(inputOptions, "canDeleteCookiesBeforeVerificationStarts") ?: true,
+                attestorAuthRequestProvider = if (canUseAttestorAuthRequestProvider) {
+                    object : ReclaimVerification.VerificationOptions.AttestorAuthRequestProvider {
+                        override fun fetchAttestorAuthenticationRequest(
+                            reclaimHttpProvider: Map<Any?, Any?>,
+                            callback: (Result<String>) -> Unit
+                        ) {
+                            val args = JSObject()
+                            args.put("reclaimHttpProviderJsonString", JSONObject(reclaimHttpProvider).toString())
+                            val replyId = UUID.randomUUID().toString()
+                            args.put("replyId", replyId)
+                            replyWithString[replyId] = callback
+                            notifyListeners("onReclaimAttestorAuthRequest", args)
+                        }
+                    }
+                } else {
+                    null
+                }
+            )
+        }
+        runOnUiQueueThread {
+            ReclaimVerification.setVerificationOptions(
+                context = _applicationContext,
+                options = options
+            ) { result ->
+                result.onSuccess {
+                    call.resolve(null)
+                }.onFailure { error ->
+                    onPlatformException(call, error)
+                }
+            }
+        }
+    }
+
+    private val replyHandlers: MutableMap<String, (Result<Boolean>) -> Unit> = mutableMapOf()
     @PluginMethod
     fun reply(call: PluginCall) {
-        call.resolve()
+        val replyId = call.getString("replyId")
+        val reply = call.getBoolean("reply") == true
+        if (replyId == null) {
+            Log.w(NAME, "(reply) Missing arg replyId")
+            return
+        }
+        runOnUiQueueThread {
+            val callback = replyHandlers[replyId]
+            if (callback != null) {
+                callback(Result.success(reply))
+            } else {
+                Log.w(NAME, "(reply) Missing reply handler for id: $replyId")
+            }
+        }
     }
 
+    private val replyWithString: MutableMap<String, (Result<String>) -> Unit> = mutableMapOf()
     @PluginMethod
-    fun replyWithProviderInformation(call: PluginCall) {
-        call.resolve()
+    fun replyWithString(call: PluginCall) {
+        val replyId = call.getString("replyId")
+        val value = call.getString("value") ?: ""
+        if (replyId == null) {
+            Log.w(NAME, "(replyWithString) Missing arg replyId")
+            return
+        }
+        runOnUiQueueThread {
+            val callback = replyWithString[replyId]
+            if (callback != null) {
+                callback(Result.success(value))
+            } else {
+                Log.w(NAME, "(replyWithString) Missing reply handler for id: $replyId")
+            }
+        }
     }
 
     @PluginMethod
@@ -157,6 +261,155 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
         val ret = JSObject()
         ret.put("value", implementation.ping())
         call.resolve(ret)
+    }
+
+    private fun setOverrides(
+        provider: JSObject?,
+        featureOptions: JSObject?,
+        logConsumer: JSObject?,
+        sessionManagement: JSObject?,
+        appInfo: JSObject?,
+        capabilityAccessToken: String?,
+        promise: PluginCall?
+    ) {
+        runOnUiQueueThread {
+            ReclaimVerification.setOverrides(
+                context = _applicationContext,
+                provider = if (provider == null) null else (
+                        if (hasValue(provider, "jsonString"))
+                            ReclaimOverrides.ProviderInformation.FromJsonString(
+                                requireString(
+                                    provider, "jsonString"
+                                )
+                            )
+                        else if (hasValue(provider, "url"))
+                            ReclaimOverrides.ProviderInformation.FromUrl(
+                                requireString(
+                                    provider, "url"
+                                )
+                            )
+                        else if (getBoolean(provider, "canFetchProviderInformationFromHost") == true)
+                            ReclaimOverrides.ProviderInformation.FromCallback(object : ReclaimOverrides.ProviderInformation.FromCallback.Handler {
+                                override fun fetchProviderInformation(
+                                    appId: String,
+                                    providerId: String,
+                                    sessionId: String,
+                                    signature: String,
+                                    timestamp: String,
+                                    callback: (Result<String>) -> Unit
+                                ) {
+                                    val args = JSObject()
+                                    args.put("appId", appId)
+                                    args.put("providerId", providerId)
+                                    args.put("sessionId", sessionId)
+                                    args.put("signature", signature)
+                                    args.put("timestamp", timestamp)
+                                    val replyId = UUID.randomUUID().toString()
+                                    args.put("replyId", replyId)
+                                    replyWithString[replyId] = callback
+                                    notifyListeners("onProviderInformationRequest", args)
+                                }
+                            })
+                        else
+                            (throw IllegalStateException("Invalid provider information. canFetchProviderInformationFromHost was not true and jsonString, url were also not provided."))
+                        ),
+                featureOptions = if (featureOptions == null) null else ReclaimOverrides.FeatureOptions(
+                    cookiePersist = getBoolean(featureOptions, "cookiePersist"),
+                    singleReclaimRequest = getBoolean(featureOptions, "singleReclaimRequest"),
+                    idleTimeThresholdForManualVerificationTrigger = getLong(
+                        featureOptions, "idleTimeThresholdForManualVerificationTrigger"
+                    ),
+                    sessionTimeoutForManualVerificationTrigger = getLong(
+                        featureOptions, "sessionTimeoutForManualVerificationTrigger"
+                    ),
+                    attestorBrowserRpcUrl = getString(featureOptions, "attestorBrowserRpcUrl"),
+                    isResponseRedactionRegexEscapingEnabled = getBoolean(
+                        featureOptions, "isResponseRedactionRegexEscapingEnabled"
+                    ),
+                    isAIFlowEnabled = getBoolean(featureOptions, "isAIFlowEnabled")
+                ),
+                logConsumer = if (logConsumer == null) null else ReclaimOverrides.LogConsumer(
+                    logHandler = if (getBoolean(logConsumer, "enableLogHandler") != true) null else object :
+                        ReclaimOverrides.LogConsumer.LogHandler {
+                        override fun onLogs(logJsonString: String) {
+                            val args = JSObject()
+                            args.put("value", logJsonString)
+                            notifyListeners("onLogs", args)
+                        }
+                    },
+                    canSdkCollectTelemetry = getBoolean(logConsumer, "canSdkCollectTelemetry") ?: true,
+                    canSdkPrintLogs = getBoolean(logConsumer, "canSdkPrintLogs")
+                ),
+                sessionManagement = if (sessionManagement == null || getBoolean(
+                        sessionManagement, "enableSdkSessionManagement"
+                    ) != false
+                ) null else ReclaimOverrides.SessionManagement(handler = object :
+                    ReclaimOverrides.SessionManagement.SessionHandler {
+                    override fun createSession(
+                        appId: String,
+                        providerId: String,
+                        sessionId: String,
+                        callback: (Result<Boolean>) -> Unit
+                    ) {
+                        val args = JSObject()
+                        args.put("appId", appId)
+                        args.put("providerId", providerId)
+                        args.put("sessionId", sessionId)
+                        val replyId = UUID.randomUUID().toString()
+                        args.put("replyId", replyId)
+                        replyHandlers[replyId] = callback
+                        notifyListeners("onSessionCreateRequest", args)
+                    }
+
+                    override fun logSession(
+                        appId: String, providerId: String, sessionId: String, logType: String
+                    ) {
+                        val args = JSObject()
+                        args.put("appId", appId)
+                        args.put("providerId", providerId)
+                        args.put("sessionId", sessionId)
+                        args.put("logType", logType)
+                        notifyListeners("onSessionLogs", args)
+                    }
+
+                    override fun updateSession(
+                        sessionId: String, status: ReclaimSessionStatus, callback: (Result<Boolean>) -> Unit
+                    ) {
+                        status.name
+                        val args = JSObject()
+                        args.put("sessionId", sessionId)
+                        args.put("status", status.name)
+                        val replyId = UUID.randomUUID().toString()
+                        args.put("replyId", replyId)
+                        replyHandlers[replyId] = callback
+                        notifyListeners("onSessionUpdateRequest", args)
+                    }
+                }),
+                appInfo = if (appInfo == null) null else ReclaimOverrides.ReclaimAppInfo(
+                    appName = requireString(appInfo, "appName"),
+                    appImageUrl = requireString(appInfo, "appImageUrl"),
+                    isRecurring = getBoolean(appInfo, "isRecurring") ?: false,
+                ),
+                capabilityAccessToken = capabilityAccessToken
+            ) { result ->
+                result.onSuccess {
+                    try {
+                        Log.d(NAME, "(setOverrides) Success")
+                        promise?.resolve(null)
+                    } catch (e: Throwable) {
+                        Log.e(NAME, "(setOverrides) Error resolving promise")
+                    }
+
+                }.onFailure { error ->
+                    try {
+                        Log.d(NAME, "(setOverrides) Failure")
+                        onPlatformException(promise, error)
+                    } catch (e: Throwable) {
+                        Log.e(NAME, "(setOverrides) Error rejecting promise", e)
+                    }
+                }
+            }
+        }
     }
 
     private fun onPlatformException(promise: PluginCall?, exception: Throwable) {
@@ -195,6 +448,15 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
             null
         } else {
             map.getJSObject(key)
+        }
+    }
+
+    private fun getLong(map: JSObject?, key: String): Long? {
+        if (map == null) return null
+        return if (!map.has(key) || map.isNull(key)) {
+            null
+        } else {
+            map.getLong(key)
         }
     }
 

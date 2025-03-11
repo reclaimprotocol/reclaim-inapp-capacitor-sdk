@@ -1,6 +1,6 @@
 {
   "name": "@reclaimprotocol/inapp-capacitor-sdk",
-  "version": "0.0.1",
+  "version": "0.3.0",
   "description": "Reclaim Protocol's InApp Capacitor SDK for ZK proof generations for requests with an in-app experience of web verification",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
