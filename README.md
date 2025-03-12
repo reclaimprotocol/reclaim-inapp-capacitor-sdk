@@ -144,6 +144,59 @@ cd ios/
 pod install
 ```
 
+#### Fixing runtime routing issue on iOS
+
+This library uses a golang static library. Use of this has raised an issue in capacitor's swift router, causing the app to crash on startup with error message: **Error: The file "public" couldn't be opened.**
+
+<img src="https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/screenshots/ios_crash.png?raw=true" alt="iOS crash" width="500">
+
+There are open issues on both capacitor and golang's issue tracker to dicuss this problem:
+* https://github.com/ionic-team/capacitor/issues/7844
+* https://github.com/golang/go/issues/58225
+
+A workaround is available to fix this issue and requires a custom view controller to be used in ios.
+
+1. First, create a PatchedViewController.swift file by [opening Xcode](https://capacitorjs.com/docs/ios#opening-the-ios-project), right-clicking on the **App** group (under the App target), selecting **New File from Template** from the context menu, choosing **Cocoa Touch Class** in the window, set the **Subclass of:** to UIViewController in the next screen, and save the file.
+
+<img src="https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/screenshots/1.png?raw=true" alt="New File from Template in Xcode" width="500">
+<img src="https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/screenshots/2.png?raw=true" alt="Selecting a Cocoa Touch Class" width="500">
+<img src="https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/screenshots/3.png?raw=true" alt="Creating a new Swift file" width="500">
+
+2. Next, select the `Main.storyboard` file in the Project Navigator, select the **Bridge View Controller** in the **Bridge View Controller Scene**, select the **Identity Inspector** on the right, and change the name of the custom class to `PatchedViewController`.
+
+<img src="https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/screenshots/4.png?raw=true" alt="Opening Identity Inspector for Main.storyboard" width="500">
+<img src="https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/screenshots/5.png?raw=true" alt="Selecting PatchedViewController" width="500">
+
+3. Finally, select the `PatchedViewController.swift` file in the Project Navigator and edit it to paste the following code:
+
+```swift
+import UIKit
+import Capacitor
+
+public struct PatchedRouter: Router {
+    public init() {}
+    public var basePath: String = ""
+    public func route(for path: String) -> String {
+        // FIX: Never pass an empty string here
+        let pathUrl = URL(fileURLWithPath: path.isEmpty ? "/" : path)
+
+        // If there's no path extension it also means the path is empty or a SPA route
+        if pathUrl.pathExtension.isEmpty {
+            return basePath + "/index.html"
+        }
+
+        return basePath + path
+    }
+}
+
+class PatchedViewController: CAPBridgeViewController {
+    // Passing our own router to fix the issue about go chdir on ios init issue
+    override open func router() -> any Router {
+        PatchedRouter()
+    }
+}
+```
+
 #### Fixing performance issues on IOS physical devices
 
 Your app performance will be severely impacted when you run debug executable on a physical device. Fixing this requires a simple change in your Xcode project xcscheme.
