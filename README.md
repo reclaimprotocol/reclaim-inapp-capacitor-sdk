@@ -17,8 +17,9 @@ npx cap sync
 * [`startVerificationFromUrl(...)`](#startverificationfromurl)
 * [`setOverrides(...)`](#setoverrides)
 * [`clearAllOverrides()`](#clearalloverrides)
+* [`setVerificationOptions(...)`](#setverificationoptions)
 * [`reply(...)`](#reply)
-* [`replyWithProviderInformation(...)`](#replywithproviderinformation)
+* [`replyWithString(...)`](#replywithstring)
 * [`ping()`](#ping)
 * [Interfaces](#interfaces)
 
@@ -79,6 +80,19 @@ clearAllOverrides() => Promise<void>
 --------------------
 
 
+### setVerificationOptions(...)
+
+```typescript
+setVerificationOptions(args: VerificationOptionsOptional) => Promise<void>
+```
+
+| Param      | Type                                                                                |
+| ---------- | ----------------------------------------------------------------------------------- |
+| **`args`** | <code><a href="#verificationoptionsoptional">VerificationOptionsOptional</a></code> |
+
+--------------------
+
+
 ### reply(...)
 
 ```typescript
@@ -92,15 +106,15 @@ reply(args: { replyId: string; reply: boolean; }) => void
 --------------------
 
 
-### replyWithProviderInformation(...)
+### replyWithString(...)
 
 ```typescript
-replyWithProviderInformation(args: { replyId: string; providerInformation: string; }) => void
+replyWithString(args: { replyId: string; value: string; }) => void
 ```
 
-| Param      | Type                                                           |
-| ---------- | -------------------------------------------------------------- |
-| **`args`** | <code>{ replyId: string; providerInformation: string; }</code> |
+| Param      | Type                                             |
+| ---------- | ------------------------------------------------ |
+| **`args`** | <code>{ replyId: string; value: string; }</code> |
 
 --------------------
 
@@ -219,5 +233,20 @@ Interface representing Reclaim App Information.
 | **`appName`**     | <code>string</code>  | The name of the application.                                   |
 | **`appImageUrl`** | <code>string</code>  | The URL of the application's image.                            |
 | **`isRecurring`** | <code>boolean</code> | Whether the reclaim is recurring. Optional, defaults to false. |
+
+
+#### VerificationOptionsOptional
+
+| Prop          | Type                                                                        |
+| ------------- | --------------------------------------------------------------------------- |
+| **`options`** | <code><a href="#verificationoptions">VerificationOptions</a> \| null</code> |
+
+
+#### VerificationOptions
+
+| Prop                                           | Type                 |
+| ---------------------------------------------- | -------------------- |
+| **`canDeleteCookiesBeforeVerificationStarts`** | <code>boolean</code> |
+| **`canUseAttestorAuthenticationRequest`**      | <code>boolean</code> |
 
 </docgen-api>
