@@ -44,6 +44,7 @@ import ReclaimInAppSdk
     Task { @MainActor in
       Api.replyWithStringHandler[replyId] = callback
     }
+    NSLog("[Api.setReplyWithStringCallback] Registered reply callback for replyId \(replyId)")
     return replyId
   }
   
@@ -134,7 +135,7 @@ import ReclaimInAppSdk
       nil
     }
     
-    var featureOptionsOverrides: ReclaimOverrides.FeatureOptions? = if let featureOptions {
+    let featureOptionsOverrides: ReclaimOverrides.FeatureOptions? = if let featureOptions {
       .init(
         cookiePersist: featureOptions.cookiePersist?.boolValue,
         singleReclaimRequest: featureOptions.singleReclaimRequest?.boolValue,

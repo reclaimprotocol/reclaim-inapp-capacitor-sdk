@@ -129,13 +129,13 @@ public class ReclaimInAppCapacitorSdkPlugin: CAPPlugin, CAPBridgedPlugin {
                 var overridenFeatureOptions: OverridenFeatureOptions? = nil;
                   if let featureOptions = call.getObject("featureOptions") {
                       overridenFeatureOptions = .init(
-                        cookiePersist:  ReclaimInAppCapacitorSdkPlugin.toNSNumberFromBool(call.getBool("cookiePersist")),
-                        singleReclaimRequest: ReclaimInAppCapacitorSdkPlugin.toNSNumberFromBool(call.getBool("singleReclaimRequest")),
-                        idleTimeThresholdForManualVerificationTrigger: ReclaimInAppCapacitorSdkPlugin.toNSNumberFromDouble(call.getDouble("idleTimeThresholdForManualVerificationTrigger")),
-                        sessionTimeoutForManualVerificationTrigger:ReclaimInAppCapacitorSdkPlugin.toNSNumberFromDouble(call.getDouble("sessionTimeoutForManualVerificationTrigger")),
-                        attestorBrowserRpcUrl:ReclaimInAppCapacitorSdkPlugin.toStringWhenNotEmpty(call.getString("attestorBrowserRpcUrl")),
-                        isResponseRedactionRegexEscapingEnabled:ReclaimInAppCapacitorSdkPlugin.toNSNumberFromBool( call.getBool("isResponseRedactionRegexEscapingEnabled")),
-                        isAIFlowEnabled:ReclaimInAppCapacitorSdkPlugin.toNSNumberFromBool(call.getBool("isAIFlowEnabled"))
+                        cookiePersist:  ReclaimInAppCapacitorSdkPlugin.toNSNumberFromBool(featureOptions["cookiePersist"] as? Bool),
+                        singleReclaimRequest: ReclaimInAppCapacitorSdkPlugin.toNSNumberFromBool(featureOptions["singleReclaimRequest"] as? Bool),
+                        idleTimeThresholdForManualVerificationTrigger: ReclaimInAppCapacitorSdkPlugin.toNSNumberFromDouble(featureOptions["idleTimeThresholdForManualVerificationTrigger"] as? Double),
+                        sessionTimeoutForManualVerificationTrigger:ReclaimInAppCapacitorSdkPlugin.toNSNumberFromDouble(featureOptions["sessionTimeoutForManualVerificationTrigger"] as? Double),
+                        attestorBrowserRpcUrl:ReclaimInAppCapacitorSdkPlugin.toStringWhenNotEmpty(featureOptions["attestorBrowserRpcUrl"] as? String),
+                        isResponseRedactionRegexEscapingEnabled:ReclaimInAppCapacitorSdkPlugin.toNSNumberFromBool( featureOptions["isResponseRedactionRegexEscapingEnabled"] as? Bool),
+                        isAIFlowEnabled:ReclaimInAppCapacitorSdkPlugin.toNSNumberFromBool(featureOptions["isAIFlowEnabled"] as? Bool)
                       )
                   }
                   
@@ -215,7 +215,6 @@ public class ReclaimInAppCapacitorSdkPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
     @objc func clearAllOverrides(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
         Task { @MainActor in
             do {
                 try await api.clearAllOverrides()
