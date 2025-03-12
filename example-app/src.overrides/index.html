@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="hydrated">
+  <head>
+    <meta charset="UTF-8" />
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <title>Reclaim InApp SDK Example</title>
+    <meta
+      name="viewport"
+      content="viewport-fit=cover, width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="format-detection" content="telephone=no" />
+  </head>
+  <body>
+    <main>
+      <div style="padding-top: 55px;"></div>
+      <h1>Reclaim InApp SDK Example</h1>
+      <div style="display: flex; flex-direction: column; max-width: 50%; gap: 10px; padding-bottom: 20px;">
+        <label for="providerIdInput">Provider Id:</label>
+        <input type="text" id="providerIdInput" name="providerIdInput" />
+        <label for="appIdInput">App Id:</label>
+        <input type="text" id="appIdInput" name="appIdInput" />
+        <label for="secretInput">Secret:</label>
+        <input type="text" id="secretInput" name="secretInput" />
+      </div>
+      <div style="display: flex; flex-direction: column; max-width: 50%; gap: 5px; padding-bottom: 20px;">
+        <button onclick="setOverrides()">Set Overrides</button>
+        <button onclick="clearAllOverrides()">Clear All Overrides</button>
+        <button onclick="startVerification()">Start Verification</button>
+        <button onclick="ping()">Ping</button>
+      </div>
+      <div id="result" style="max-width: 100%">
+      </div>
+    </main>
+
+    <script src="./js/example.js" type="module"></script>
+  </body>
+</html>
