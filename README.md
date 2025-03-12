@@ -1,6 +1,19 @@
 # @reclaimprotocol/inapp-capacitor-sdk
 
-Reclaim Protocol's InApp Capacitor SDK for ZK proof generations for requests with an in-app experience of web verification
+![NPM Version](https://img.shields.io/npm/v/%40reclaimprotocol%2Finapp-capacitor-sdk)
+
+This SDK allows you to integrate Reclaim's in-app verification process into your Capacitor application.
+
+[Refer Reclaim Protocol's official documentation for Capacitor SDK](https://docs.reclaimprotocol.org/inapp-sdks/capacitor)
+
+## Prerequisites
+
+- A [Reclaim account](https://dev.reclaimprotocol.org/explore) where you've created an app and have the app id, app secret.
+- A provider id that you've added to your app in [Reclaim Devtools](https://dev.reclaimprotocol.org/explore).
+
+## Example
+
+- See the [Reclaim Example - Capacitor](https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/tree/main/example-app/README.md) for a complete example of how to use the SDK in a Capacitor application.
 
 ## Install
 
@@ -9,244 +22,266 @@ npm install @reclaimprotocol/inapp-capacitor-sdk
 npx cap sync
 ```
 
-## API
+## Setup
 
-<docgen-index>
+### Android Setup
 
-* [`startVerification(...)`](#startverification)
-* [`startVerificationFromUrl(...)`](#startverificationfromurl)
-* [`setOverrides(...)`](#setoverrides)
-* [`clearAllOverrides()`](#clearalloverrides)
-* [`setVerificationOptions(...)`](#setverificationoptions)
-* [`reply(...)`](#reply)
-* [`replyWithString(...)`](#replywithstring)
-* [`ping()`](#ping)
-* [Interfaces](#interfaces)
+Add the following to your `android/app/src/main/AndroidManifest.xml` file under the `<application>` tag:
 
-</docgen-index>
-
-<docgen-api>
-<!--Update the source file JSDoc comments and rerun docgen to update the docs below-->
-
-### startVerification(...)
-
-```typescript
-startVerification(request: Request) => Promise<Response>
+```xml
+      <activity
+        android:name="org.reclaimprotocol.inapp_sdk.ReclaimActivity"
+        android:theme="@style/Theme.ReclaimInAppSdk.LaunchTheme"
+        android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+        android:hardwareAccelerated="true"
+        android:windowSoftInputMode="adjustResize"
+        />
 ```
 
-| Param         | Type                                        |
-| ------------- | ------------------------------------------- |
-| **`request`** | <code><a href="#request">Request</a></code> |
+add the following to the end of settings.gradle:
 
-**Returns:** <code>Promise&lt;<a href="#response">Response</a>&gt;</code>
-
---------------------
-
-
-### startVerificationFromUrl(...)
-
-```typescript
-startVerificationFromUrl(requestUrl: { value: string; }) => Promise<Response>
+```groovy
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    String flutterStorageUrl = System.env.FLUTTER_STORAGE_BASE_URL ?: "https://storage.googleapis.com"
+    String reclaimStorageUrl = System.env.RECLAIM_STORAGE_BASE_URL ?: "https://reclaim-inapp-sdk.s3.ap-south-1.amazonaws.com/android/0.3.0/repo"
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            url "$reclaimStorageUrl"
+        }
+        maven {
+            url "$flutterStorageUrl/download.flutter.io"
+        }
+    }
+}
 ```
 
-| Param            | Type                            |
-| ---------------- | ------------------------------- |
-| **`requestUrl`** | <code>{ value: string; }</code> |
+(Ignore if already added in settings.gradle from above)
+or alternatively add the following repositories to the relevant repositories block:
 
-**Returns:** <code>Promise&lt;<a href="#response">Response</a>&gt;</code>
-
---------------------
-
-
-### setOverrides(...)
-
-```typescript
-setOverrides(overrides: Overrides) => Promise<void>
+```groovy
+String flutterStorageUrl = System.env.FLUTTER_STORAGE_BASE_URL ?: "https://storage.googleapis.com"
+String reclaimStorageUrl = System.env.RECLAIM_STORAGE_BASE_URL ?: "https://reclaim-inapp-sdk.s3.ap-south-1.amazonaws.com/android/0.3.0/repo"
+maven {
+    url "$reclaimStorageUrl"
+}
+maven {
+    url "$flutterStorageUrl/download.flutter.io"
+}
 ```
 
-| Param           | Type                                            |
-| --------------- | ----------------------------------------------- |
-| **`overrides`** | <code><a href="#overrides">Overrides</a></code> |
+Some projects may require you to add the repositories to the root `build.gradle` file or your app-level `build.gradle` file's allprojects section.
 
---------------------
+### iOS Setup
 
+1. Make sure to define a global platform for your project in your `Podfile` with version 13.0 or higher.
 
-### clearAllOverrides()
-
-```typescript
-clearAllOverrides() => Promise<void>
+```
+platform :ios, '13.0' # or platform :ios, min_ios_version_supported
 ```
 
---------------------
+Ignore if you already have this declaration in your `Podfile`.
 
+2. Add the following to your `Podfile` to override SDK dependency:
 
-### setVerificationOptions(...)
+- This step is only required when facing issues with the resolved pod dependency. 
+- You can override the version of dependency when you wish to use a specific version of the SDK.
+- You can add a declaration in your `Podfile` to install the SDK from cocoapods, or from a specific git tag, head, commit, or branch.
 
-```typescript
-setVerificationOptions(args: VerificationOptionsOptional) => Promise<void>
+##### From cocoapods (recommended)
+
+```ruby
+# Cocoapods is the recommended way to install the SDK.
+pod 'ReclaimInAppSdk', '~> 0.3.0'
 ```
 
-| Param      | Type                                                                                |
-| ---------- | ----------------------------------------------------------------------------------- |
-| **`args`** | <code><a href="#verificationoptionsoptional">VerificationOptionsOptional</a></code> |
+##### From a specific tag
 
---------------------
-
-
-### reply(...)
-
-```typescript
-reply(args: { replyId: string; reply: boolean; }) => void
+```ruby
+pod 'ReclaimInAppSdk', :git => 'https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk.git', :tag => '0.3.0'
 ```
 
-| Param      | Type                                              |
-| ---------- | ------------------------------------------------- |
-| **`args`** | <code>{ replyId: string; reply: boolean; }</code> |
+##### From git HEAD
 
---------------------
-
-
-### replyWithString(...)
-
-```typescript
-replyWithString(args: { replyId: string; value: string; }) => void
+```ruby
+pod 'ReclaimInAppSdk', :git => 'https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk.git'
 ```
 
-| Param      | Type                                             |
-| ---------- | ------------------------------------------------ |
-| **`args`** | <code>{ replyId: string; value: string; }</code> |
+##### From a specific commit
 
---------------------
-
-
-### ping()
-
-```typescript
-ping() => Promise<{ value: boolean; }>
+```ruby
+pod 'ReclaimInAppSdk', :git => 'https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk.git', :commit => 'eeb5a5484a5927217065e5c988fab8201cb2db2e'
 ```
 
-**Returns:** <code>Promise&lt;{ value: boolean; }&gt;</code>
+##### From a specific branch
 
---------------------
+```ruby
+pod 'ReclaimInAppSdk', :git => 'https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk.git', :branch => 'main'
+```
 
+- After adding the dependency, your podfile may look like this:
 
-### Interfaces
+```ruby
+platform :ios, '13.0'
 
+# ... some podfile content (removed for brevity)
 
-#### Response
+target 'App' do
+  capacitor_pods
+  # Add your Pods here
+  # This is the line that you may need to add in your podfile.
+  pod 'ReclaimInAppSdk', '~> 0.3.0'
+end
+  # ... rest of the podfile. (removed for brevity)
+```
 
-Contains the proof and response data after verification
+3. Run `pod install` inside the `ios/` directory of your project.
 
-| Prop                              | Type                                   | Description                                                  |
-| --------------------------------- | -------------------------------------- | ------------------------------------------------------------ |
-| **`sessionId`**                   | <code>string</code>                    | The session ID for the verification attempt                  |
-| **`didSubmitManualVerification`** | <code>boolean</code>                   | Whether the proof was submitted manually                     |
-| **`proofs`**                      | <code>{ [key: string]: any; }[]</code> | The list of proofs generated during the verification attempt |
+```sh
+cd ios/
+pod install
+```
 
+#### Fixing performance issues on IOS physical devices
 
-#### Request
+Your app performance will be severely impacted when you run debug executable on a physical device. Fixing this requires a simple change in your Xcode project xcscheme.
 
-Represents a request for a verification attempt.
+#### Method 1: Update Environment Variables for XCScheme (Recommended) 
+1. Open your iOS project (*.xcworkspace) in Xcode.
+2. Click on the project target.
+3. Click on the **Scheme** dropdown.
 
-You can create a request using the [ReclaimVerification.Request] constructor or the [ReclaimVerification.<a href="#request">Request</a>.fromManifestMetaData] factory method.
+<img src="https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk/blob/83f23570a47828d011b713679852053acdba89c1/Screenshots/Install/10.png?raw=true" alt="Edit current xcscheme in Xcode" width="500">
 
-| Prop                    | Type                                                                      | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ----------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`appId`**             | <code>string</code>                                                       | The Reclaim application ID for the verification process. If not provided, the appId will be fetched from: - the `AndroidManifest.xml` metadata along with secret on android: ```xml &lt;meta-data android:name="org.reclaimprotocol.inapp_sdk.APP_ID"             android:value="YOUR_RECLAIM_APP_ID" /&gt; ``` - the `ReclaimInAppSDKParam.ReclaimAppId` in Info.plist along with secret on iOS: ```xml &lt;key&gt;ReclaimInAppSDKParam&lt;/key&gt; &lt;dict&gt;     &lt;key&gt;ReclaimAppId&lt;/key&gt;     &lt;string&gt;YOUR_RECLAIM_APP_ID&lt;/string&gt;     &lt;key&gt;ReclaimAppSecret&lt;/key&gt;     &lt;string&gt;YOUR_RECLAIM_APP_SECRET&lt;/string&gt; &lt;/dict&gt; ```                |
-| **`secret`**            | <code>string</code>                                                       | The Reclaim application secret for the verification process. If not provided, the secret will be fetched from: - the `AndroidManifest.xml` metadata along with appId on android: ```xml &lt;meta-data android:name="org.reclaimprotocol.inapp_sdk.APP_SECRET"             android:value="YOUR_RECLAIM_APP_SECRET" /&gt; ``` - the `ReclaimInAppSDKParam.ReclaimAppSecret` in Info.plist along with appId on iOS: ```xml &lt;key&gt;ReclaimInAppSDKParam&lt;/key&gt; &lt;dict&gt;     &lt;key&gt;ReclaimAppId&lt;/key&gt;     &lt;string&gt;YOUR_RECLAIM_APP_ID&lt;/string&gt;     &lt;key&gt;ReclaimAppSecret&lt;/key&gt;     &lt;string&gt;YOUR_RECLAIM_APP_SECRET&lt;/string&gt; &lt;/dict&gt; ``` |
-| **`providerId`**        | <code>string</code>                                                       | The identifier for the Reclaim data provider to use in verification                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| **`session`**           | <code><a href="#sessioninformation">SessionInformation</a> \| null</code> | Optional session information. If nil, SDK generates new session details.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **`contextString`**     | <code>string</code>                                                       | Additional data to associate with the verification attempt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| **`parameters`**        | <code>{ [key: string]: string; }</code>                                   | Key-value pairs for prefilling claim creation variables                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| **`autoSubmit`**        | <code>boolean</code>                                                      | Whether to automatically submit the proof after generation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **`acceptAiProviders`** | <code>boolean</code>                                                      |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| **`webhookUrl`**        | <code>string \| null</code>                                               |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+4. Click on the **Edit Scheme** button.
+5. Click on the **Run** tab.
+6. Click on the **Arguments** tab and check the **Environment Variables** section.
 
+<img src="https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk/blob/83f23570a47828d011b713679852053acdba89c1/Screenshots/Install/12.png?raw=true" alt="Enable Debug executable in Xcode" width="500">
 
-#### SessionInformation
+7. Add the following environment variable:
+    - Key: `GODEBUG`
+    - Value: `asyncpreemptoff=1`
+8. Click on the **Close** button in the dialog and build the project.
+9. Run the app on a physical device.
 
-| Prop            | Type                | Description                                                                                                                                                                                                                                                                     |
-| --------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`timestamp`** | <code>string</code> | The timestamp of the session creation. Represented as a string from number of milliseconds since the "Unix epoch" 1970-01-01T00:00:00Z (UTC). This value is independent of the time zone. This value is at most 8,640,000,000,000,000ms (100,000,000 days) from the Unix epoch. |
-| **`sessionId`** | <code>string</code> | Unique identifier for the verification session                                                                                                                                                                                                                                  |
-| **`signature`** | <code>string</code> | Cryptographic signature to validate the session                                                                                                                                                                                                                                 |
+#### Method 2: Disable "Debug executable"
 
+This method is **not recommended** but could be useful if you don't want to add environment variables to the xcscheme.
 
-#### Overrides
+1. Open your iOS project (*.xcworkspace) in Xcode.
+2. Click on the project target.
+3. Click on the **Scheme** dropdown.
 
-| Prop                        | Type                                                                        |
-| --------------------------- | --------------------------------------------------------------------------- |
-| **`provider`**              | <code><a href="#providerinformation">ProviderInformation</a> \| null</code> |
-| **`featureOptions`**        | <code><a href="#featureoptions">FeatureOptions</a> \| null</code>           |
-| **`logConsumer`**           | <code><a href="#logconsumer">LogConsumer</a> \| null</code>                 |
-| **`sessionManagement`**     | <code><a href="#sessionmanagement">SessionManagement</a> \| null</code>     |
-| **`appInfo`**               | <code><a href="#reclaimappinfo">ReclaimAppInfo</a> \| null</code>           |
-| **`capabilityAccessToken`** | <code>string \| null</code>                                                 |
+<img src="https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk/blob/83f23570a47828d011b713679852053acdba89c1/Screenshots/Install/10.png?raw=true" alt="Edit current xcscheme in Xcode" width="500">
 
+4. Click on the **Edit Scheme** button.
+5. Click on the **Run** tab.
+6. Uncheck the **Debug executable** checkbox.
 
-#### ProviderInformation
+<img src="https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk/blob/83f23570a47828d011b713679852053acdba89c1/Screenshots/Install/11.png?raw=true" alt="Enable Debug executable in Xcode" width="500">
 
-| Prop                                      | Type                 |
-| ----------------------------------------- | -------------------- |
-| **`url`**                                 | <code>string</code>  |
-| **`jsonString`**                          | <code>string</code>  |
-| **`canFetchProviderInformationFromHost`** | <code>boolean</code> |
+## Usage
 
+To use Reclaim InApp Sdk in your project, follow these steps:
 
-#### FeatureOptions
+1. Import the `@reclaimprotocol/inapp-capacitor-sdk` package in your project file.
 
-Interface representing Feature Options.
+```js
+import { ReclaimVerification } from '@reclaimprotocol/inapp-capacitor-sdk';
+```
 
-| Prop                                                | Type                         | Description                                                                                            |
-| --------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **`cookiePersist`**                                 | <code>boolean \| null</code> | Whether to persist a cookie. Optional, defaults to null.                                               |
-| **`singleReclaimRequest`**                          | <code>boolean \| null</code> | Whether to allow a single reclaim request. Optional, defaults to null.                                 |
-| **`idleTimeThresholdForManualVerificationTrigger`** | <code>number \| null</code>  | Idle time threshold (in milliseconds?) for triggering manual verification. Optional, defaults to null. |
-| **`sessionTimeoutForManualVerificationTrigger`**    | <code>number \| null</code>  | Session timeout (in milliseconds?) for triggering manual verification. Optional, defaults to null.     |
-| **`attestorBrowserRpcUrl`**                         | <code>string \| null</code>  | URL for the Attestor Browser RPC. Optional, defaults to null.                                          |
-| **`isResponseRedactionRegexEscapingEnabled`**       | <code>boolean \| null</code> | Whether response redaction regex escaping is enabled. Optional, defaults to null.                      |
-| **`isAIFlowEnabled`**                               | <code>boolean \| null</code> | Whether AI flow is enabled. Optional, defaults to null.                                                |
+2. Initialize the `ReclaimVerification` class to create an instance.
 
+```js
+const reclaimVerification = new ReclaimVerification();
+```
 
-#### LogConsumer
+3. Start the verification flow by providing the app id, secret and provider id.
 
-| Prop                         | Type                 | Description                                                                            |
-| ---------------------------- | -------------------- | -------------------------------------------------------------------------------------- |
-| **`enableLogHandler`**       | <code>boolean</code> | Handler for consuming logs exported from the SDK. Defaults to false.                   |
-| **`canSdkCollectTelemetry`** | <code>boolean</code> | When enabled, logs are sent to reclaim that can be used to help you. Defaults to true. |
-| **`canSdkPrintLogs`**        | <code>boolean</code> | Defaults to enabled when not in release mode.                                          |
+```js
+const verificationResult = await reclaimVerification.startVerification({
+    appId: config.RECLAIM_APP_ID ?? '',
+    secret: config.RECLAIM_APP_SECRET ?? '',
+    providerId: providerId,
+});
+```
 
+The returned result is a [ReclaimVerification.Response] object. This object contains a response that has proofs, exception, and the sessionId if the verification is successful.
 
-#### SessionManagement
+### Exception Handling
 
-| Prop                             | Type                 | Description                                                                                                                                                   |
-| -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`enableSdkSessionManagement`** | <code>boolean</code> | Whether to enable SDK session management. Optional, defaults to true. When false, a handler must be provided. We'll not let SDK manage sessions in this case. |
+If the verification ends with an exception, the exception is thrown as a [ReclaimVerification.ReclaimVerificationException] object.
 
+Following is an example of how to handle the exception using [error.type]:
 
-#### ReclaimAppInfo
+```js
+try {
+  // ... start verification
+} catch (error) {
+  if (error instanceof ReclaimVerification.ReclaimVerificationException) {
+    switch (error.type) {
+      case ReclaimVerification.ExceptionType.Cancelled:
+        Snackbar.show({
+          text: 'Verification cancelled',
+          duration: Snackbar.LENGTH_LONG,
+        });
+        break;
+      case ReclaimVerification.ExceptionType.Dismissed:
+        Snackbar.show({
+          text: 'Verification dismissed',
+          duration: Snackbar.LENGTH_LONG,
+        });
+        break;
+      case ReclaimVerification.ExceptionType.SessionExpired:
+        Snackbar.show({
+          text: 'Verification session expired',
+          duration: Snackbar.LENGTH_LONG,
+        });
+        break;
+      case ReclaimVerification.ExceptionType.Failed:
+      default:
+        Snackbar.show({
+          text: 'Verification failed',
+          duration: Snackbar.LENGTH_LONG,
+        });
+    }
+  } else {
+    Snackbar.show({
+      text: error instanceof Error ? error.message : 'An unknown verification error occurred',
+      duration: Snackbar.LENGTH_LONG,
+    });
+  }
+}
+```
 
-Interface representing Reclaim App Information.
+This error also contains `sessionId`, `reason`, and `innerError` that can be used to get more details about the occurred error.
 
-| Prop              | Type                 | Description                                                    |
-| ----------------- | -------------------- | -------------------------------------------------------------- |
-| **`appName`**     | <code>string</code>  | The name of the application.                                   |
-| **`appImageUrl`** | <code>string</code>  | The URL of the application's image.                            |
-| **`isRecurring`** | <code>boolean</code> | Whether the reclaim is recurring. Optional, defaults to false. |
+```js
+error.sessionId
+error.reason
+error.innerError
+```
 
+## Advanced Usage
 
-#### VerificationOptionsOptional
+### Overriding SDK Config
 
-| Prop          | Type                                                                        |
-| ------------- | --------------------------------------------------------------------------- |
-| **`options`** | <code><a href="#verificationoptions">VerificationOptions</a> \| null</code> |
+```js
+// Advanced Usage: Use ReclaimVerification.setOverrides for overriding sdk
+reclaimVerification.setOverrides({
+  appInfo: {
+    appName: "Overriden Example",
+    appImageUrl: "https://placehold.co/400x400/png"
+  }
+  // .. other overrides
+})
+```
 
+Note: Overriding again will clear previous overrides
 
-#### VerificationOptions
+## Contributing
 
-| Prop                                           | Type                 |
-| ---------------------------------------------- | -------------------- |
-| **`canDeleteCookiesBeforeVerificationStarts`** | <code>boolean</code> |
-| **`canUseAttestorAuthenticationRequest`**      | <code>boolean</code> |
-
-</docgen-api>
+See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the repository and the development workflow.
