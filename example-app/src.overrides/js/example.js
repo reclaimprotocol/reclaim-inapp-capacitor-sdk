@@ -8,6 +8,8 @@ window.setOverrides = async () => {
         await sdk.setOverrides({
             provider: {
                 callback: async () => {
+                    const providerId = getValueFromElement('providerIdInput');
+
                     // With a response from an HTTP call
                     // const response = await fetch(`https://api.reclaimprotocol.org/api/providers/${providerId}`);
                     // const responseJson =  await response.json();
@@ -187,6 +189,15 @@ window.ping = async () => {
     } catch (error) {
         console.warn('Error pinging', error);
         resultElement.innerHTML = JSON.stringify(error);
+    }
+}
+
+window.getValueFromElement = (id) => {
+    const element = document.getElementById(id);
+    if (!element) {
+        console.warn(`Element with id ${id} not found`);
+    } else {
+        return element.value;
     }
 }
 
