@@ -10,13 +10,13 @@ public class ReclaimInAppCapacitorSdkPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "ReclaimInAppCapacitorSdkPlugin"
     public let jsName = "ReclaimInAppCapacitorSdk"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "echo", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startVerification", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startVerificationFromUrl", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setOverrides", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearAllOverrides", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setVerificationOptions", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "reply", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "replyWithProviderInformation", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "replyWithString", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "ping", returnType: CAPPluginReturnPromise)
     ]
 
@@ -225,6 +225,35 @@ public class ReclaimInAppCapacitorSdkPlugin: CAPPlugin, CAPBridgedPlugin {
             }
         }
     }
+    @objc func setVerificationOptions(_ call: CAPPluginCall) {
+        let inputOptions = call.getObject("options")
+                var options:  ReclaimApiVerificationOptions? = nil
+                if let inputOptions {
+                    let canUseAttestorAuthRequestProvider = inputOptions["canUseAttestorAuthenticationRequest"] as? Bool == true;
+                    var fetchAttestorCallback: ReclaimVerificationOptionFetchAttestorAuthRequestHandler? = nil
+                    if canUseAttestorAuthRequestProvider {
+                        fetchAttestorCallback = { reclaimHttpProviderJsonString, replyId in
+                            self.notifyListeners("onReclaimAttestorAuthRequest", data: [
+                                "reclaimHttpProviderJsonString": reclaimHttpProviderJsonString,
+                                "replyId": replyId
+                            ])
+                        }
+                    }
+                    options = .init(
+                        canDeleteCookiesBeforeVerificationStarts: (inputOptions["canDeleteCookiesBeforeVerificationStarts"] as? Bool) ?? true,
+                        fetchAttestorAuthenticationRequest: fetchAttestorCallback
+                    )
+                }
+        
+        Task { @MainActor in
+            do {
+                try await api.setVerificationOptions(options: options)
+                call.resolve()
+            } catch {
+                call.reject("Error on clearing overrides", "OVERRIDE_ERROR", error)
+            }
+        }
+    }
     @objc func reply(_ call: CAPPluginCall) {
         api.reply(
             replyId: call.getString("replyId") ?? "",
@@ -232,10 +261,10 @@ public class ReclaimInAppCapacitorSdkPlugin: CAPPlugin, CAPBridgedPlugin {
         )
         call.resolve()
     }
-    @objc func replyWithProviderInformation(_ call: CAPPluginCall) {
-        api.replyWithProviderInformation(
+    @objc func replyWithString(_ call: CAPPluginCall) {
+        api.replyWithString(
             replyId: call.getString("replyId") ?? "",
-            providerInformation: call.getString("providerInformation") ?? ""
+            value: call.getString("value") ?? ""
         )
         call.resolve()
     }
