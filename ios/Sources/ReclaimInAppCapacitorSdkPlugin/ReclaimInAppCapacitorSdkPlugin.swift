@@ -54,7 +54,6 @@ public class ReclaimInAppCapacitorSdkPlugin: CAPPlugin, CAPBridgedPlugin {
                     sessionSignature: signature,
                     context: call.getString("contextString"),
                     parameters: parameters,
-                    autoSubmit: call.getBool("autoSubmit", false),
                     acceptAiProviders: call.getBool("acceptAiProviders", false),
                     webhookUrl: call.getString("webhookUrl")
                 )
@@ -134,7 +133,6 @@ public class ReclaimInAppCapacitorSdkPlugin: CAPPlugin, CAPBridgedPlugin {
                         idleTimeThresholdForManualVerificationTrigger: ReclaimInAppCapacitorSdkPlugin.toNSNumberFromDouble(featureOptions["idleTimeThresholdForManualVerificationTrigger"] as? Double),
                         sessionTimeoutForManualVerificationTrigger:ReclaimInAppCapacitorSdkPlugin.toNSNumberFromDouble(featureOptions["sessionTimeoutForManualVerificationTrigger"] as? Double),
                         attestorBrowserRpcUrl:ReclaimInAppCapacitorSdkPlugin.toStringWhenNotEmpty(featureOptions["attestorBrowserRpcUrl"] as? String),
-                        isResponseRedactionRegexEscapingEnabled:ReclaimInAppCapacitorSdkPlugin.toNSNumberFromBool( featureOptions["isResponseRedactionRegexEscapingEnabled"] as? Bool),
                         isAIFlowEnabled:ReclaimInAppCapacitorSdkPlugin.toNSNumberFromBool(featureOptions["isAIFlowEnabled"] as? Bool)
                       )
                   }
@@ -162,11 +160,12 @@ public class ReclaimInAppCapacitorSdkPlugin: CAPPlugin, CAPBridgedPlugin {
 
                 var sessionManagement: OverridenSessionManagement? = nil
                 if let value = call.getObject("sessionManagement"), let isEnabled = value["enableSdkSessionManagement"] as? Bool?, isEnabled == true {
-                    let handler: OverridenSessionManagement.OverridenSessionHandler = .init { appId, providerId, sessionId, replyId in
+                    let handler: OverridenSessionManagement.OverridenSessionHandler = .init { appId, providerId, timestamp, signature, replyId in
                         self.notifyListeners("onSessionCreateRequest", data: [
                             "appId": appId,
                             "providerId": providerId,
-                            "sessionId": sessionId,
+                            "timestamp": timestamp,
+                            "signature": signature,
                             "replyId": replyId
                         ])
                     } _updateSession: { sessionId, status, replyId in
@@ -240,7 +239,10 @@ public class ReclaimInAppCapacitorSdkPlugin: CAPPlugin, CAPBridgedPlugin {
                     }
                     options = .init(
                         canDeleteCookiesBeforeVerificationStarts: (inputOptions["canDeleteCookiesBeforeVerificationStarts"] as? Bool) ?? true,
-                        fetchAttestorAuthenticationRequest: fetchAttestorCallback
+                        fetchAttestorAuthenticationRequest: fetchAttestorCallback,
+                        claimCreationType: inputOptions["claimCreationType"] as? String ?? "standard",
+                        canAutoSubmit: (inputOptions["canAutoSubmit"] as? Bool) ?? true,
+                        isCloseButtonVisible: (inputOptions["isCloseButtonVisible"] as? Bool) ?? true,
                     )
                 }
         

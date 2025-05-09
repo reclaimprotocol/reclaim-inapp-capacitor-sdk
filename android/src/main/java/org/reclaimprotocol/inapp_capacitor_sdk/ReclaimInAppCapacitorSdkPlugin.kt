@@ -89,7 +89,6 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                     }
                 }
             }
-            val autoSubmit = getBoolean(request, "autoSubmit")
             val acceptAiProviders = getBoolean(request, "acceptAiProviders")
             val webhookUrl = getString(request, "webhookUrl")
             if (appId.isNullOrBlank() && secret.isNullOrBlank()) {
@@ -103,7 +102,6 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                         signature = getString(session, "signature") ?: "",
                     ),
                     parameters = parameters,
-                    autoSubmit = autoSubmit ?: false,
                     acceptAiProviders = acceptAiProviders ?: false,
                     webhookUrl = webhookUrl,
                 )
@@ -119,7 +117,6 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                         signature = getString(session, "signature") ?: "",
                     ),
                     parameters = parameters,
-                    autoSubmit = autoSubmit ?: false,
                     acceptAiProviders = acceptAiProviders ?: false,
                     webhookUrl = webhookUrl,
                 )
@@ -201,7 +198,9 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                     }
                 } else {
                     null
-                }
+                },
+                canAutoSubmit = getBoolean(inputOptions, "canAutoSubmit") ?: true,
+                isCloseButtonVisible = getBoolean(inputOptions, "isCloseButtonVisible") ?: true,
             )
         }
         runOnUiQueueThread {
@@ -323,9 +322,6 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                         featureOptions, "sessionTimeoutForManualVerificationTrigger"
                     ),
                     attestorBrowserRpcUrl = getString(featureOptions, "attestorBrowserRpcUrl"),
-                    isResponseRedactionRegexEscapingEnabled = getBoolean(
-                        featureOptions, "isResponseRedactionRegexEscapingEnabled"
-                    ),
                     isAIFlowEnabled = getBoolean(featureOptions, "isAIFlowEnabled")
                 ),
                 logConsumer = if (logConsumer == null) null else ReclaimOverrides.LogConsumer(
@@ -348,21 +344,23 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                     override fun createSession(
                         appId: String,
                         providerId: String,
-                        sessionId: String,
-                        callback: (Result<Boolean>) -> Unit
+                        timestamp: String,
+                        signature: String,
+                        callback: (Result<String>) -> Unit
                     ) {
                         val args = JSObject()
                         args.put("appId", appId)
                         args.put("providerId", providerId)
-                        args.put("sessionId", sessionId)
+                        args.put("timestamp", timestamp)
+                        args.put("signature", signature)
                         val replyId = UUID.randomUUID().toString()
                         args.put("replyId", replyId)
-                        replyHandlers[replyId] = callback
+                        replyWithString[replyId] = callback
                         notifyListeners("onSessionCreateRequest", args)
                     }
 
                     override fun logSession(
-                        appId: String, providerId: String, sessionId: String, logType: String
+                        appId: String, providerId: String, sessionId: String, logType: String, metadata: Map<String, Any?>?
                     ) {
                         val args = JSObject()
                         args.put("appId", appId)
