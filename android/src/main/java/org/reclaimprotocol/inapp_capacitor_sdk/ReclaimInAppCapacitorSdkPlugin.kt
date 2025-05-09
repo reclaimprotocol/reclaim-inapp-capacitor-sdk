@@ -199,6 +199,10 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                 } else {
                     null
                 },
+                claimCreationType = when (getString(inputOptions, "claimCreationType")) {
+                    "meChain" -> ReclaimVerification.VerificationOptions.ClaimCreationType.ME_CHAIN
+                    else -> ReclaimVerification.VerificationOptions.ClaimCreationType.STANDALONE
+                },
                 canAutoSubmit = getBoolean(inputOptions, "canAutoSubmit") ?: true,
                 isCloseButtonVisible = getBoolean(inputOptions, "isCloseButtonVisible") ?: true,
             )
