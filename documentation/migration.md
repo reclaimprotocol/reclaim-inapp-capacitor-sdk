@@ -38,4 +38,4 @@ dependencyResolutionManagement {
 
 - Make sure if you are using the latest versions of `ReclaimInAppSdk` cocoapod if you have overriden this dependency in your `Podfile`. Latest version on [cocoapods.org is 0.6.0](https://cocoapods.org/pods/ReclaimInAppSdk).
 - Run a `pod install --repo-update`. If this fails for reasons related to the `ReclaimInAppSdk`, try running `pod update ReclaimInAppSdk`.
-- Refer: https://github.com/reclaimprotocol/reclaim-inapp-reactnative-sdk/blob/main/README.md#ios-setup
+- Refer: https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/README.md#ios-setup
