@@ -115,6 +115,16 @@ export namespace ReclaimVerification {
   export interface VerificationOptions {
     canDeleteCookiesBeforeVerificationStarts: boolean;
     fetchAttestorAuthenticationRequest: (reclaimHttpProviderJsonString: string) => Promise<string>;
+    claimCreationType?: 'standalone' | 'meChain'; // Optional
+    /**
+     * Whether to automatically submit the proof after generation. Defaults to true.
+     */
+    canAutoSubmit?: boolean; // Optional
+
+    /**
+     * Whether the close button is visible. Defaults to true.
+     */
+    isCloseButtonVisible?: boolean; // Optional
   }
 
   export namespace Overrides {
@@ -144,7 +154,12 @@ export namespace ReclaimVerification {
     }
     export interface SessionManagement {
       onLog: (event: NativeReclaimInappModuleTypes.SessionLogEvent) => void;
-      onSessionCreateRequest: (event: NativeReclaimInappModuleTypes.SessionCreateRequestEvent) => Promise<boolean>;
+      /**
+       * Receive request for creating a session and return a session id.
+       * @param event Receive request for creating a session and return a session id.
+       * @returns A session id.
+       */
+      onSessionCreateRequest: (event: NativeReclaimInappModuleTypes.SessionCreateRequestEvent) => Promise<string>;
       onSessionUpdateRequest: (event: NativeReclaimInappModuleTypes.SessionUpdateRequestEvent) => Promise<boolean>;
     };
     export type ReclaimAppInfo = NativeReclaimInappModuleTypes.ReclaimAppInfo;
@@ -408,10 +423,10 @@ export class PlatformImpl extends ReclaimVerification.Platform {
               const replyId = event.replyId;
               try {
                   let result = await sessionManagement.onSessionCreateRequest(event);
-                  ReclaimInAppCapacitorSdk.reply({ replyId, reply: result });
+                  ReclaimInAppCapacitorSdk.replyWithString({ replyId, value: result });
               } catch (error) {
                   console.error(error);
-                  ReclaimInAppCapacitorSdk.reply({ replyId, reply: false });
+                  ReclaimInAppCapacitorSdk.replyWithString({ replyId, value: '' });
               }
           });
           let sessionUpdateSubscription = await ReclaimInAppCapacitorSdk.addListener('onSessionUpdateRequest', async (event) => {
@@ -476,6 +491,9 @@ export class PlatformImpl extends ReclaimVerification.Platform {
           args = {
               canDeleteCookiesBeforeVerificationStarts: options.canDeleteCookiesBeforeVerificationStarts,
               canUseAttestorAuthenticationRequest: canUseAttestorAuthenticationRequest,
+              claimCreationType: options.claimCreationType ?? 'standalone',
+              canAutoSubmit: options.canAutoSubmit ?? true,
+              isCloseButtonVisible: options.isCloseButtonVisible ?? true,
           }
           if (canUseAttestorAuthenticationRequest) {
               this.disposeAttestorAuthRequestListener();

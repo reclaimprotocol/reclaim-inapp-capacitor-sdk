@@ -44,7 +44,7 @@ add the following to the end of settings.gradle:
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     String flutterStorageUrl = System.env.FLUTTER_STORAGE_BASE_URL ?: "https://storage.googleapis.com"
-    String reclaimStorageUrl = System.env.RECLAIM_STORAGE_BASE_URL ?: "https://reclaim-inapp-sdk.s3.ap-south-1.amazonaws.com/android/0.3.0/repo"
+    String reclaimStorageUrl = System.env.RECLAIM_STORAGE_BASE_URL ?: "https://reclaim-inapp-sdk.s3.ap-south-1.amazonaws.com/android/repo"
     repositories {
         google()
         mavenCentral()
@@ -63,7 +63,7 @@ or alternatively add the following repositories to the relevant repositories blo
 
 ```groovy
 String flutterStorageUrl = System.env.FLUTTER_STORAGE_BASE_URL ?: "https://storage.googleapis.com"
-String reclaimStorageUrl = System.env.RECLAIM_STORAGE_BASE_URL ?: "https://reclaim-inapp-sdk.s3.ap-south-1.amazonaws.com/android/0.3.0/repo"
+String reclaimStorageUrl = System.env.RECLAIM_STORAGE_BASE_URL ?: "https://reclaim-inapp-sdk.s3.ap-south-1.amazonaws.com/android/repo"
 maven {
     url "$reclaimStorageUrl"
 }
@@ -94,13 +94,13 @@ Ignore if you already have this declaration in your `Podfile`.
 
 ```ruby
 # Cocoapods is the recommended way to install the SDK.
-pod 'ReclaimInAppSdk', '~> 0.3.0'
+pod 'ReclaimInAppSdk', '~> 0.6.0'
 ```
 
 ##### From a specific tag
 
 ```ruby
-pod 'ReclaimInAppSdk', :git => 'https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk.git', :tag => '0.3.0'
+pod 'ReclaimInAppSdk', :git => 'https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk.git', :tag => '0.6.0'
 ```
 
 ##### From git HEAD
@@ -132,7 +132,7 @@ target 'App' do
   capacitor_pods
   # Add your Pods here
   # This is the line that you may need to add in your podfile.
-  pod 'ReclaimInAppSdk', '~> 0.3.0'
+  pod 'ReclaimInAppSdk', '~> 0.6.0'
 end
   # ... rest of the podfile. (removed for brevity)
 ```
@@ -317,6 +317,10 @@ error.sessionId
 error.reason
 error.innerError
 ```
+
+## Migration
+
+- Migration steps for [0.6.0](https://github.com/reclaimprotocol/reclaim-inapp-reactnative-sdk/blob/main/documentation/migration.md#060)
 
 ## Advanced Usage
 

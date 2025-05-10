@@ -120,7 +120,6 @@ window.setOverrides = async () => {
                 idleTimeThresholdForManualVerificationTrigger: 2,
                 sessionTimeoutForManualVerificationTrigger: 180,
                 attestorBrowserRpcUrl: 'https://attestor.reclaimprotocol.org/browser-rpc',
-                isResponseRedactionRegexEscapingEnabled: false,
                 isAIFlowEnabled: false,
             },
             sessionManagement: {
