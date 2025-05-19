@@ -94,13 +94,13 @@ Ignore if you already have this declaration in your `Podfile`.
 
 ```ruby
 # Cocoapods is the recommended way to install the SDK.
-pod 'ReclaimInAppSdk', '~> 0.6.0'
+pod 'ReclaimInAppSdk', '~> 0.7.0'
 ```
 
 ##### From a specific tag
 
 ```ruby
-pod 'ReclaimInAppSdk', :git => 'https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk.git', :tag => '0.6.0'
+pod 'ReclaimInAppSdk', :git => 'https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk.git', :tag => '0.7.0'
 ```
 
 ##### From git HEAD
@@ -132,7 +132,7 @@ target 'App' do
   capacitor_pods
   # Add your Pods here
   # This is the line that you may need to add in your podfile.
-  pod 'ReclaimInAppSdk', '~> 0.6.0'
+  pod 'ReclaimInAppSdk', '~> 0.7.0'
 end
   # ... rest of the podfile. (removed for brevity)
 ```
@@ -320,7 +320,8 @@ error.innerError
 
 ## Migration
 
-- Migration steps for [0.6.0](https://github.com/reclaimprotocol/reclaim-inapp-reactnative-sdk/blob/main/documentation/migration.md#060)
+- Migration steps for [0.7.0](https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/documentation/migration.md#070)
+- Migration steps for [0.6.0](https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/documentation/migration.md#060)
 
 ## Advanced Usage
 
