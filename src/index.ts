@@ -6,7 +6,7 @@ import { ReclaimInAppCapacitorSdkPlugin } from "./definitions";
  * [ReclaimVerification] is the main class for interacting with the Reclaim verification system.
  * It provides methods to start verification processes, manage platform configurations,
  * and handle verification options.
- * 
+ *
  * The class can be instantiated with a custom platform implementation, or will use
  * the default [PlatformImpl] if none is provided.
  */
@@ -14,6 +14,9 @@ export class ReclaimVerification {
   public platform: ReclaimVerification.Platform;
 
   private static defaultPlatform: ReclaimVerification.Platform | null = null;
+  private static isStrictConfigCheckEnabled: boolean = false;
+  private static lastOverrides: ReclaimVerification.OverrideConfig | null = null;
+  private static lastVerificationOptions: ReclaimVerification.VerificationOptions | null = null;
 
   public constructor(platform?: ReclaimVerification.Platform) {
     if (platform) {
@@ -26,12 +29,31 @@ export class ReclaimVerification {
     }
   }
 
+  /**
+   * Enables or disables strict configuration checks. When enabled,
+   * [startVerification], [startVerificationFromUrl], and [startVerificationFromJson]
+   * will throw if any field of [OverrideConfig] was not provided via [setOverrides],
+   * or if any option of [VerificationOptions] was not provided via [setVerificationOptions].
+   *
+   * Disabled by default.
+   */
+  public setStrictConfigCheck(enabled: boolean) {
+    ReclaimVerification.isStrictConfigCheckEnabled = enabled === true;
+  }
+
   public async startVerification(request: ReclaimVerification.Request): Promise<ReclaimVerification.Response> {
+    ReclaimVerification.assertStrictConfig();
     return this.platform.startVerification(request);
   }
 
   public async startVerificationFromUrl(requestUrl: string): Promise<ReclaimVerification.Response> {
+    ReclaimVerification.assertStrictConfig();
     return this.platform.startVerificationFromUrl(requestUrl);
+  }
+
+  public async startVerificationFromJson(template: Record<string, any>): Promise<ReclaimVerification.Response> {
+    ReclaimVerification.assertStrictConfig();
+    return this.platform.startVerificationFromJson(template);
   }
 
   public async ping(): Promise<boolean> {
@@ -39,15 +61,76 @@ export class ReclaimVerification {
   }
 
   public setOverrides(overrides: ReclaimVerification.OverrideConfig) {
+    ReclaimVerification.lastOverrides = overrides;
     return this.platform.setOverrides(overrides);
   }
 
   public clearAllOverrides() {
+    ReclaimVerification.lastOverrides = null;
     return this.platform.clearAllOverrides();
   }
 
   public setVerificationOptions(options?: ReclaimVerification.VerificationOptions | null) {
+    ReclaimVerification.lastVerificationOptions = options ?? null;
     return this.platform.setVerificationOptions(options);
+  }
+
+  public parseLog(log: string): ReclaimVerification.LogEntry {
+    return this.platform.parseLog(log);
+  }
+
+  public setConsoleLogging(enabled: boolean) {
+    return this.platform.setConsoleLogging({
+      enabled: enabled == true,
+    });
+  }
+
+  public addEventListener<T extends keyof ReclaimVerification.EventListener.EventMap>(
+    type: T,
+    listener: ReclaimVerification.EventListener.EventListener<T>
+  ): ReclaimVerification.EventListener.CancelEventSubscription {
+    return this.platform.addEventListener(type, listener);
+  }
+
+  private static assertStrictConfig() {
+    if (!ReclaimVerification.isStrictConfigCheckEnabled) return;
+
+    const overrides = ReclaimVerification.lastOverrides;
+    const overrideKeys: (keyof ReclaimVerification.OverrideConfig)[] = [
+      'provider',
+      'featureOptions',
+      'logConsumer',
+      'sessionManagement',
+      'appInfo',
+      'capabilityAccessToken',
+    ];
+    const missingOverrides = overrides
+      ? overrideKeys.filter((k) => overrides[k] === undefined)
+      : overrideKeys;
+    if (missingOverrides.length > 0) {
+      throw new Error(
+        `[ReclaimVerification] Strict config check failed: setOverrides was ${overrides ? 'called without' : 'not called with'} the following fields: ${missingOverrides.join(', ')}. Provide values for every field or disable strict mode via setStrictConfigCheck(false).`
+      );
+    }
+
+    const options = ReclaimVerification.lastVerificationOptions;
+    const optionKeys: (keyof ReclaimVerification.VerificationOptions)[] = [
+      'canDeleteCookiesBeforeVerificationStarts',
+      'fetchAttestorAuthenticationRequest',
+      'claimCreationType',
+      'canAutoSubmit',
+      'isCloseButtonVisible',
+      'locale',
+      'useTeeOperator',
+    ];
+    const missingOptions = options
+      ? optionKeys.filter((k) => options[k] === undefined)
+      : optionKeys;
+    if (missingOptions.length > 0) {
+      throw new Error(
+        `[ReclaimVerification] Strict config check failed: setVerificationOptions was ${options ? 'called without' : 'not called with'} the following options: ${missingOptions.join(', ')}. Provide values for every option or disable strict mode via setStrictConfigCheck(false).`
+      );
+    }
   }
 }
 
@@ -68,7 +151,27 @@ export namespace ReclaimVerification {
    *
    * You can create a request using the [ReclaimVerification.Request] constructor or the [ReclaimVerification.Request.fromManifestMetaData] factory method.
    */
-  export type Request = NativeReclaimInappModuleTypes.Request;
+  export type Request = Omit<NativeReclaimInappModuleTypes.Request, 'providerVersion'> & {
+    providerVersion?: ProviderVersion;
+  };
+
+  export class ProviderVersion implements NativeReclaimInappModuleTypes.ProviderVersion {
+    resolvedVersion: string;
+    versionExpression: string;
+
+    private constructor(exactVersion: string, versionExpression: string) {
+      this.resolvedVersion = exactVersion;
+      this.versionExpression = versionExpression;
+    }
+
+    static resolved(exactVersion: string, versionExpression?: string): ProviderVersion {
+      return new ProviderVersion(exactVersion, versionExpression ?? exactVersion);
+    }
+
+    static from(versionExpression: string = ''): ProviderVersion {
+      return new ProviderVersion(versionExpression, versionExpression);
+    }
+  }
 
   /**
    * Contains the proof and response data after verification
@@ -117,9 +220,20 @@ export namespace ReclaimVerification {
   }
 
   export interface VerificationOptions {
-    canDeleteCookiesBeforeVerificationStarts: boolean;
-    fetchAttestorAuthenticationRequest: (reclaimHttpProviderJsonString: string) => Promise<string>;
+    /**
+     * Whether to delete cookies before user journey starts in the client web view.
+     * Defaults to true.
+     */
+    canDeleteCookiesBeforeVerificationStarts?: boolean;
+
+    /**
+     * A callback to host that returns an authentication request when a Reclaim HTTP provider is provided.
+     * Used for verifying authentication to attestor.
+     */
+    fetchAttestorAuthenticationRequest?: (reclaimHttpProviderJsonString: string) => Promise<string>;
+
     claimCreationType?: 'standalone' | 'meChain'; // Optional
+
     /**
      * Whether to automatically submit the proof after generation. Defaults to true.
      */
@@ -129,7 +243,28 @@ export namespace ReclaimVerification {
      * Whether the close button is visible. Defaults to true.
      */
     isCloseButtonVisible?: boolean; // Optional
+
+    /**
+     * A language code & Country code for localization that should be enforced in the verification flow.
+     */
+    locale?: string | null;
+
+    /**
+     * Enables use of Reclaim's TEE+MPC protocol for HTTP Request claim verification and
+     * attestation.
+     *
+     * When set to `true`, the verification will use Trusted Execution Environment
+     * (TEE) with Multi-Party Computation (MPC) for enhanced security.
+     *
+     * When set to `false`, the standard Reclaim's proxy attestor verification flow is used.
+     *
+     * When `null` (default), inappsdk decides whether to use TEE based on
+     * a feature flag.
+     */
+    useTeeOperator?: boolean | null;
   }
+
+  export type SetConsoleLoggingOptions = NativeReclaimInappModuleTypes.SetConsoleLoggingOptions;
 
   export namespace Overrides {
     export interface ProviderInformation {
@@ -143,7 +278,7 @@ export namespace ReclaimVerification {
        * Handler for consuming logs exported from the SDK.
        * Defaults to false.
        */
-      onLogs?: (logJsonString: String, cancel: () => void) => void;
+      onLogs?: (logJsonString: string, cancel: () => void) => void;
 
       /**
        * When enabled, logs are sent to reclaim that can be used to help you.
@@ -163,10 +298,25 @@ export namespace ReclaimVerification {
        * @param event Receive request for creating a session and return a session id.
        * @returns A session id.
        */
-      onSessionCreateRequest: (event: NativeReclaimInappModuleTypes.SessionCreateRequestEvent) => Promise<string>;
+      onSessionCreateRequest: (event: NativeReclaimInappModuleTypes.SessionCreateRequestEvent) => Promise<SessionInitResponse>;
       onSessionUpdateRequest: (event: NativeReclaimInappModuleTypes.SessionUpdateRequestEvent) => Promise<boolean>;
     };
+
+    export interface SessionInitResponse {
+      sessionId: string;
+      resolvedProviderVersion: string;
+    }
+
     export type ReclaimAppInfo = NativeReclaimInappModuleTypes.ReclaimAppInfo;
+  }
+
+  export namespace EventListener {
+    export type SessionIdentityUpdate = NativeReclaimInappModuleTypes.ReclaimSessionIdentityUpdate;
+    export interface EventMap {
+      sessionIdentityUpdate: SessionIdentityUpdate;
+    }
+    export type EventListener<T extends keyof EventMap> = (event: EventMap[T]) => void | Promise<void>;
+    export type CancelEventSubscription = () => void;
   }
 
   export type OverrideConfig = {
@@ -177,6 +327,183 @@ export namespace ReclaimVerification {
     appInfo?: Overrides.ReclaimAppInfo,
     capabilityAccessToken?: string | null,
   }
+
+  export enum LogLevel {
+    // Failures & Errors
+    SEVERE = 'SEVERE',
+    WARNING = 'WARNING',
+    INFO = 'INFO',
+    // Configurations
+    CONFIG = 'CONFIG',
+    // Verbose debugging logs
+    FINE = 'FINE',
+    // PII Logging
+    FINER = 'FINER',
+    // PII & Extremely Verbose debugging logs
+    FINEST = 'FINEST',
+  }
+
+  /// Enum representing different types of logging events in the Reclaim SDK.
+  export enum LogEventType {
+    /// The verification flow has been initiated by the user.
+    VERIFICATION_FLOW_STARTED,
+
+    /// Checking if the current environment is a Reclaim verifier.
+    IS_RECLAIM_VERIFIER,
+
+    /// Checking if the current environment is a Reclaim inapp SDK.
+    IS_RECLAIM_INAPPSDK,
+
+    /// An update for inapp SDK is available. Use is still allowed.
+    UPDATE_AVAILABLE,
+
+    /// An update for inapp SDK is available and the current version cannot be used anymore.
+    SDK_OUTDATED,
+
+    /// An exception indicating that the platform is not supported for Reclaim verification.
+    RECLAIM_VERIFICATION_PLATFORM_NOT_SUPPORTED_EXCEPTION,
+
+    /// An exception for an invalid Reclaim request.
+    INVALID_REQUEST_RECLAIM_EXCEPTION,
+
+    /// The Reclaim verification process was dismissed by the user.
+    RECLAIM_VERIFICATION_DISMISSED,
+
+    /// An exception indicating the verification process was cancelled for the user.
+    RECLAIM_VERIFICATION_CANCELLED_EXCEPTION,
+
+    /// An exception during the loading of a verification provider.
+    RECLAIM_VERIFICATION_PROVIDER_LOAD_EXCEPTION,
+
+    /// An exception when initializing a Reclaim session.
+    RECLAIM_INIT_SESSION_EXCEPTION,
+
+    /// An exception for an expired Reclaim session.
+    RECLAIM_EXPIRED_SESSION_EXCEPTION,
+
+    /// The Reclaim verification process was skipped.
+    RECLAIM_VERIFICATION_SKIPPED,
+
+    /// An exception related to attestor authentication.
+    RECLAIM_ATTESTOR_AUTH_EXCEPTION,
+
+    /// Sending request to load initial url
+    LOADING_INITIAL_URL,
+
+    /// The first web page for verification is ready.
+    WEB_PAGE_READY,
+
+    /// Page loading started
+    PAGE_LOADING_STARTED,
+
+    /// Page loading stopped
+    PAGE_LOADING_STOPPED,
+
+    /// An exception when no user activity is detected during verification.
+    RECLAIM_VERIFICATION_NO_ACTIVITY_DETECTED_EXCEPTION,
+
+    /// A network request has been intercepted.
+    REQUEST_INTERCEPTED,
+
+    /// A network request has been matched against the provider's requirements.
+    REQUEST_MATCHED,
+
+    /// The provider script has requested a claim.
+    PROVIDER_SCRIPT_REQUESTED_CLAIM,
+
+    /// The claim is being prepared.
+    PREPARING_CLAIM,
+
+    /// The claim parameters are being validated.
+    VALIDATING_CLAIM_PARAMETERS,
+
+    /// An XPath match requirement for claim validation has failed.
+    X_PATH_MATCH_REQUIREMENT_FAILED,
+
+    /// A JSONPath match requirement for claim validation has failed.
+    JSON_PATH_MATCH_REQUIREMENT_FAILED,
+
+    /// A regex match requirement for claim validation has failed.
+    REGEX_MATCH_REQUIREMENT_FAILED,
+
+    ///
+    NO_PARAMETERS_FOUND,
+
+    /// An exception for failed claim parameter validation.
+    CLAIM_PARAMETER_VALIDATION_FAILED_EXCEPTION,
+
+    /// A warning that no response matched the provider's requirements.
+    NO_RESPONSE_MATCH_WARNING,
+
+    /// The process of creating a claim is starting.
+    STARTING_CLAIM_CREATION,
+
+    /// The claim creation process has officially started.
+    CLAIM_CREATION_STARTED,
+
+    /// The attestor is not responding.
+    ATTESTOR_NOT_RESPONDING,
+
+    /// An exception indicating the claim creation was cancelled.
+    CLAIM_CREATION_CANCELLED_EXCEPTION,
+
+    /// A proof has been successfully generated.
+    PROOF_GENERATED,
+
+    /// An exception for a failed proof generation.
+    PROOF_GENERATION_FAILED_EXCEPTION,
+
+    /// An exception indicating that the claim creation process has timed out.
+    CLAIM_CREATION_TIMED_OUT_EXCEPTION,
+
+    /// A result has been received.
+    RESULT_RECEIVED,
+
+    /// The generated proof is being submitted.
+    SUBMITTING_PROOF,
+
+    /// The proof has been successfully submitted.
+    PROOF_SUBMITTED,
+
+    /// The proof submission has failed.
+    PROOF_SUBMISSION_FAILED,
+  }
+
+  export type LogEntry = {
+    logLine: string;
+    /**
+     * Timestamp in nanoseconds since unix epoch
+     */
+    ts: string;
+    /**
+     * Same as `ts` but as JavaScript Date
+     */
+    datetime: Date;
+    /**
+     * Logger name
+     */
+    type: string;
+    /**
+     * Session id
+     */
+    sessionId: string | '' | 'unknown';
+    /**
+     * Provider id
+     */
+    providerId: string;
+    /**
+     * App id
+     */
+    appId: string;
+    /**
+     * Log level
+     */
+    logLevel: keyof typeof LogLevel;
+    /**
+     * Log event
+     */
+    eventType?: keyof typeof LogEventType | '';
+  };
 
   export enum ExceptionType {
     Cancelled = "Cancelled",
@@ -287,6 +614,8 @@ export namespace ReclaimVerification {
 
     abstract startVerificationFromUrl(requestUrl: string): Promise<ReclaimVerification.Response>
 
+    abstract startVerificationFromJson(template: Record<string, any>): Promise<ReclaimVerification.Response>
+
     abstract ping(): Promise<boolean>
 
     abstract setOverrides(config: ReclaimVerification.OverrideConfig): Promise<void>
@@ -294,229 +623,332 @@ export namespace ReclaimVerification {
     abstract clearAllOverrides(): Promise<void>
 
     abstract setVerificationOptions(options?: ReclaimVerification.VerificationOptions | null): Promise<void>
+
+    abstract parseLog(log: string): ReclaimVerification.LogEntry
+
+    abstract setConsoleLogging(options?: ReclaimVerification.SetConsoleLoggingOptions | null): Promise<void>
+
+    abstract addEventListener<T extends keyof ReclaimVerification.EventListener.EventMap>(
+      type: T,
+      listener: ReclaimVerification.EventListener.EventListener<T>
+    ): ReclaimVerification.EventListener.CancelEventSubscription
   }
 }
 
 const ReclaimInAppCapacitorSdk = registerPlugin<ReclaimInAppCapacitorSdkPlugin>(
   'ReclaimInAppCapacitorSdk',
   {
-      web: () => import('./web').then(m => new m.ReclaimInAppCapacitorSdkWeb()),
+    web: () => import('./web').then(m => new m.ReclaimInAppCapacitorSdkWeb()),
   },
 );
 
 export class PlatformImpl extends ReclaimVerification.Platform {
   override async startVerification(request: ReclaimVerification.Request): Promise<ReclaimVerification.Response> {
-      try {
-          const response = await ReclaimInAppCapacitorSdk.startVerification(request);
-          return {
-              ...response,
-              proofs: ReclaimVerification.ReclaimResult.asProofs(response.proofs),
-          }
-      } catch (error) {
-          console.info({
-              error
-          })
-          if (error instanceof Error) {
-              throw ReclaimVerification.ReclaimVerificationException.fromError(error, request.session?.sessionId ?? "");
-          }
-          throw error
+    try {
+      const response = await ReclaimInAppCapacitorSdk.startVerification(request as NativeReclaimInappModuleTypes.Request);
+      return {
+        ...response,
+        proofs: ReclaimVerification.ReclaimResult.asProofs(response.proofs),
       }
+    } catch (error) {
+      console.info({
+        error
+      })
+      if (error instanceof Error) {
+        throw ReclaimVerification.ReclaimVerificationException.fromError(error, request.session?.sessionId ?? "");
+      }
+      throw error
+    }
   }
 
   override async startVerificationFromUrl(requestUrl: string): Promise<ReclaimVerification.Response> {
-      try {
-          const response = await ReclaimInAppCapacitorSdk.startVerificationFromUrl({ value: requestUrl });
-          return {
-              ...response,
-              proofs: ReclaimVerification.ReclaimResult.asProofs(response.proofs),
-          }
-      } catch (error) {
-          console.info({
-              error
-          })
-          if (error instanceof Error) {
-              throw ReclaimVerification.ReclaimVerificationException.fromError(error, "");
-          }
-          throw error
+    try {
+      const response = await ReclaimInAppCapacitorSdk.startVerificationFromUrl({ value: requestUrl });
+      return {
+        ...response,
+        proofs: ReclaimVerification.ReclaimResult.asProofs(response.proofs),
       }
+    } catch (error) {
+      console.info({
+        error
+      })
+      if (error instanceof Error) {
+        throw ReclaimVerification.ReclaimVerificationException.fromError(error, "");
+      }
+      throw error
+    }
+  }
+
+  override async startVerificationFromJson(template: Record<string, any>): Promise<ReclaimVerification.Response> {
+    try {
+      const response = await ReclaimInAppCapacitorSdk.startVerificationFromJson({ template: JSON.stringify(template) });
+      return {
+        ...response,
+        proofs: ReclaimVerification.ReclaimResult.asProofs(response.proofs),
+      }
+    } catch (error) {
+      console.info({
+        error
+      })
+      if (error instanceof Error) {
+        throw ReclaimVerification.ReclaimVerificationException.fromError(error, "");
+      }
+      throw error
+    }
   }
 
   override async ping(): Promise<boolean> {
-      return await ReclaimInAppCapacitorSdk.ping().then((result) => result.value);
+    return await ReclaimInAppCapacitorSdk.ping().then((result) => result.value);
   }
 
   private previousSessionManagementCancelCallback: null | (() => void) = null;
   disposeSessionManagement() {
-      let callback = this.previousSessionManagementCancelCallback;
-      if (callback != null && callback != undefined) {
-          callback();
-      }
-      this.previousSessionManagementCancelCallback = null;
+    let callback = this.previousSessionManagementCancelCallback;
+    if (callback != null && callback != undefined) {
+      callback();
+    }
+    this.previousSessionManagementCancelCallback = null;
   }
 
   private previousLogSubscription: PluginListenerHandle | null = null;
   disposeLogListener() {
-      this.previousLogSubscription?.remove()
-      this.previousLogSubscription = null;
+    this.previousLogSubscription?.remove()
+    this.previousLogSubscription = null;
   }
 
   private previousProviderRequestCancelCallback: null | (() => void) = null;
   private disposeProviderRequestListener() {
-      let callback = this.previousProviderRequestCancelCallback;
-      if (callback != null && callback != undefined) {
-          callback();
-      }
-      this.previousProviderRequestCancelCallback = null;
+    let callback = this.previousProviderRequestCancelCallback;
+    if (callback != null && callback != undefined) {
+      callback();
+    }
+    this.previousProviderRequestCancelCallback = null;
   }
 
   override async setOverrides({
-      provider,
-      featureOptions,
-      logConsumer,
-      sessionManagement,
-      appInfo,
-      capabilityAccessToken
+    provider,
+    featureOptions,
+    logConsumer,
+    sessionManagement,
+    appInfo,
+    capabilityAccessToken
   }: ReclaimVerification.OverrideConfig) {
-      let providerCallback = provider?.callback;
-      let providerOverride = !provider ? null : {
-          url: provider?.url,
-          jsonString: provider?.jsonString,
-          canFetchProviderInformationFromHost: !!providerCallback,
+    let providerCallback = provider?.callback;
+    let providerOverride = !provider ? null : {
+      url: provider?.url,
+      jsonString: provider?.jsonString,
+      canFetchProviderInformationFromHost: !!providerCallback,
+    }
+    if (providerCallback) {
+      this.disposeProviderRequestListener();
+      let providerRequestSubscription = await ReclaimInAppCapacitorSdk.addListener('onProviderInformationRequest', async (event) => {
+        try {
+          let result = await providerCallback(event);
+          ReclaimInAppCapacitorSdk.replyWithString({ replyId: event.replyId, value: result });
+        } catch (error) {
+          console.error(error);
+          ReclaimInAppCapacitorSdk.replyWithString({ replyId: event.replyId, value: "" });
+        }
+      });
+      const cancel = async () => {
+        return await providerRequestSubscription.remove();
       }
-      if (providerCallback) {
-          this.disposeProviderRequestListener();
-          let providerRequestSubscription = await ReclaimInAppCapacitorSdk.addListener('onProviderInformationRequest', async (event) => {
-              try {
-                  let result = await providerCallback(event);
-                  ReclaimInAppCapacitorSdk.replyWithString({ replyId: event.replyId, value: result });
-              } catch (error) {
-                  console.error(error);
-                  ReclaimInAppCapacitorSdk.replyWithString({ replyId: event.replyId, value: "" });
-              }
-          });
-          const cancel = async () => {
-              return await providerRequestSubscription.remove();
-          }
-          this.previousProviderRequestCancelCallback = cancel;
-      }
+      this.previousProviderRequestCancelCallback = cancel;
+    }
 
-      const onLogsListener = logConsumer?.onLogs;
-      let logConsumerRequest = !logConsumer ? undefined : {
-          enableLogHandler: !!onLogsListener,
-          canSdkCollectTelemetry: logConsumer?.canSdkCollectTelemetry,
-          canSdkPrintLogs: logConsumer?.canSdkPrintLogs
-      }
-      if (onLogsListener) {
-          this.disposeLogListener();
-          const cancel = () => {
-              this.previousLogSubscription?.remove();
-              this.previousLogSubscription = null;
-          };
-          this.previousLogSubscription = await ReclaimInAppCapacitorSdk.addListener('onLogs', (arg) => {
-              onLogsListener(arg.value, cancel);
-          })
-      }
+    const onLogsListener = logConsumer?.onLogs;
+    let logConsumerRequest = !logConsumer ? undefined : {
+      enableLogHandler: !!onLogsListener,
+      canSdkCollectTelemetry: logConsumer?.canSdkCollectTelemetry,
+      canSdkPrintLogs: logConsumer?.canSdkPrintLogs
+    }
+    if (onLogsListener) {
+      this.disposeLogListener();
+      const cancel = () => {
+        this.previousLogSubscription?.remove();
+        this.previousLogSubscription = null;
+      };
+      this.previousLogSubscription = await ReclaimInAppCapacitorSdk.addListener('onLogs', (arg) => {
+        onLogsListener(arg.value, cancel);
+      })
+    }
 
-      let sessionManagementRequest = !sessionManagement ? undefined : {
-          // A handler is provided, so we don't let SDK manage sessions
-          enableSdkSessionManagement: false
+    let sessionManagementRequest = !sessionManagement ? undefined : {
+      // A handler is provided, so we don't let SDK manage sessions
+      enableSdkSessionManagement: false
+    }
+    if (sessionManagement) {
+      this.disposeSessionManagement();
+      let sessionCreateSubscription = await ReclaimInAppCapacitorSdk.addListener('onSessionCreateRequest', async (event) => {
+        const replyId = event.replyId;
+        try {
+          let result = await sessionManagement.onSessionCreateRequest(event);
+          ReclaimInAppCapacitorSdk.replyWithString({ replyId, value: JSON.stringify(result) });
+        } catch (error) {
+          console.error(error);
+          ReclaimInAppCapacitorSdk.replyWithString({ replyId, value: '' });
+        }
+      });
+      let sessionUpdateSubscription = await ReclaimInAppCapacitorSdk.addListener('onSessionUpdateRequest', async (event) => {
+        const replyId = event.replyId;
+        try {
+          let result = await sessionManagement.onSessionUpdateRequest(event);
+          ReclaimInAppCapacitorSdk.reply({ replyId, reply: result });
+        } catch (error) {
+          console.error(error);
+          ReclaimInAppCapacitorSdk.reply({ replyId, reply: false });
+        }
+      });
+      let sessionLogsSubscription = await ReclaimInAppCapacitorSdk.addListener('onSessionLogs', (event) => {
+        try {
+          sessionManagement.onLog(event);
+        } catch (error) {
+          console.error(error);
+        }
+      });
+      const cancel = () => {
+        sessionCreateSubscription.remove()
+        sessionUpdateSubscription.remove()
+        sessionLogsSubscription.remove()
       }
-      if (sessionManagement) {
-          this.disposeSessionManagement();
-          let sessionCreateSubscription = await ReclaimInAppCapacitorSdk.addListener('onSessionCreateRequest', async (event) => {
-              const replyId = event.replyId;
-              try {
-                  let result = await sessionManagement.onSessionCreateRequest(event);
-                  ReclaimInAppCapacitorSdk.replyWithString({ replyId, value: result });
-              } catch (error) {
-                  console.error(error);
-                  ReclaimInAppCapacitorSdk.replyWithString({ replyId, value: '' });
-              }
-          });
-          let sessionUpdateSubscription = await ReclaimInAppCapacitorSdk.addListener('onSessionUpdateRequest', async (event) => {
-              const replyId = event.replyId;
-              try {
-                  let result = await sessionManagement.onSessionUpdateRequest(event);
-                  ReclaimInAppCapacitorSdk.reply({ replyId, reply: result });
-              } catch (error) {
-                  console.error(error);
-                  ReclaimInAppCapacitorSdk.reply({ replyId, reply: false });
-              }
-          });
-          let sessionLogsSubscription = await ReclaimInAppCapacitorSdk.addListener('onSessionLogs', (event) => {
-              try {
-                  sessionManagement.onLog(event);
-              } catch (error) {
-                  console.error(error);
-              }
-          });
-          const cancel = () => {
-              sessionCreateSubscription.remove()
-              sessionUpdateSubscription.remove()
-              sessionLogsSubscription.remove()
-          }
-          this.previousSessionManagementCancelCallback = cancel;
-      }
+      this.previousSessionManagementCancelCallback = cancel;
+    }
 
-      try {
-          return await ReclaimInAppCapacitorSdk.setOverrides({
-              provider: providerOverride,
-              featureOptions,
-              logConsumer: logConsumerRequest,
-              sessionManagement: sessionManagementRequest,
-              appInfo,
-              capabilityAccessToken
-          });
-      } catch (error) {
-          throw new ReclaimVerification.ReclaimPlatformException("Failed to set overrides", error as Error);
-      }
+    try {
+      return await ReclaimInAppCapacitorSdk.setOverrides({
+        provider: providerOverride,
+        featureOptions,
+        logConsumer: logConsumerRequest,
+        sessionManagement: sessionManagementRequest,
+        appInfo,
+        capabilityAccessToken
+      });
+    } catch (error) {
+      throw new ReclaimVerification.ReclaimPlatformException("Failed to set overrides", error as Error);
+    }
   }
 
   override async clearAllOverrides() {
-      this.disposeProviderRequestListener();
-      this.disposeLogListener();
-      this.disposeSessionManagement();
-      return ReclaimInAppCapacitorSdk.clearAllOverrides();
+    this.disposeProviderRequestListener();
+    this.disposeLogListener();
+    this.disposeSessionManagement();
+    return ReclaimInAppCapacitorSdk.clearAllOverrides();
   }
 
   private previousAttestorAuthRequestCancelCallback: null | (() => void) = null;
   disposeAttestorAuthRequestListener() {
-      let callback = this.previousAttestorAuthRequestCancelCallback;
-      if (callback != null && callback != undefined) {
-          callback();
-      }
-      this.previousAttestorAuthRequestCancelCallback = null;
+    let callback = this.previousAttestorAuthRequestCancelCallback;
+    if (callback != null && callback != undefined) {
+      callback();
+    }
+    this.previousAttestorAuthRequestCancelCallback = null;
   }
 
   override async setVerificationOptions(options?: ReclaimVerification.VerificationOptions | null): Promise<void> {
-      let args: NativeReclaimInappModuleTypes.VerificationOptions | null = null
-      if (options) {
-          let canUseAttestorAuthenticationRequest = options.fetchAttestorAuthenticationRequest != null
-          args = {
-              canDeleteCookiesBeforeVerificationStarts: options.canDeleteCookiesBeforeVerificationStarts,
-              canUseAttestorAuthenticationRequest: canUseAttestorAuthenticationRequest,
-              claimCreationType: options.claimCreationType ?? 'standalone',
-              canAutoSubmit: options.canAutoSubmit ?? true,
-              isCloseButtonVisible: options.isCloseButtonVisible ?? true,
-          }
-          if (canUseAttestorAuthenticationRequest) {
-              this.disposeAttestorAuthRequestListener();
-              let attestorAuthRequestSubscription = await ReclaimInAppCapacitorSdk.addListener('onReclaimAttestorAuthRequest', async (event) => {
-                  let result = await options.fetchAttestorAuthenticationRequest(event.reclaimHttpProviderJsonString);
-                  ReclaimInAppCapacitorSdk.replyWithString({ replyId: event.replyId, value: result });
-              });
-              const cancel = () => {
-                  attestorAuthRequestSubscription.remove();
-              }
-              this.previousAttestorAuthRequestCancelCallback = cancel;
-          }
+    let args: NativeReclaimInappModuleTypes.VerificationOptions | null = null
+    if (options) {
+      let canUseAttestorAuthenticationRequest = options.fetchAttestorAuthenticationRequest != null
+      args = {
+        canDeleteCookiesBeforeVerificationStarts: options.canDeleteCookiesBeforeVerificationStarts ?? true,
+        canUseAttestorAuthenticationRequest: canUseAttestorAuthenticationRequest,
+        claimCreationType: options.claimCreationType ?? 'standalone',
+        canAutoSubmit: options.canAutoSubmit ?? true,
+        isCloseButtonVisible: options.isCloseButtonVisible ?? true,
+        locale: options.locale ?? null,
+        useTeeOperator: options.useTeeOperator ?? null,
       }
-      try {
-          return await ReclaimInAppCapacitorSdk.setVerificationOptions({
-              options: args
-          });
-      } catch (error) {
-          throw new ReclaimVerification.ReclaimPlatformException("Failed to set verification options", error as Error);
+      if (canUseAttestorAuthenticationRequest) {
+        this.disposeAttestorAuthRequestListener();
+        let attestorAuthRequestSubscription = await ReclaimInAppCapacitorSdk.addListener('onReclaimAttestorAuthRequest', async (event) => {
+          let result = await options.fetchAttestorAuthenticationRequest!(event.reclaimHttpProviderJsonString);
+          ReclaimInAppCapacitorSdk.replyWithString({ replyId: event.replyId, value: result });
+        });
+        const cancel = () => {
+          attestorAuthRequestSubscription.remove();
+        }
+        this.previousAttestorAuthRequestCancelCallback = cancel;
       }
+    }
+    try {
+      return await ReclaimInAppCapacitorSdk.setVerificationOptions({
+        options: args
+      });
+    } catch (error) {
+      throw new ReclaimVerification.ReclaimPlatformException("Failed to set verification options", error as Error);
+    }
+  }
+
+  /**
+   * Converts a nanosecond timestamp string back to a JavaScript Date object.
+   * @param {string} timeStampStr - The timestamp string (ms * 1,000,000)
+   * @returns {Date}
+   */
+  fromTimeStampToDate(timeStampStr: string): Date {
+    try {
+      const nanoseconds = BigInt(timeStampStr);
+      const milliseconds = Number(nanoseconds / BigInt(1000000));
+      return new Date(milliseconds);
+    } catch (e) {
+      return new Date();
+    }
+  }
+
+  override parseLog(log: string): ReclaimVerification.LogEntry {
+    let data = JSON.parse(log) as ReclaimVerification.LogEntry;
+    if (data.ts) {
+      data.datetime = this.fromTimeStampToDate(data.ts);
+    }
+    return data;
+  }
+
+  override async setConsoleLogging(options?: ReclaimVerification.SetConsoleLoggingOptions | null): Promise<void> {
+    try {
+      return await ReclaimInAppCapacitorSdk.setConsoleLogging({
+        enabled: options?.enabled == true,
+      });
+    } catch (error) {
+      throw new ReclaimVerification.ReclaimPlatformException("Failed to set console logging", error as Error);
+    }
+  }
+
+  static listenersCount: Record<keyof ReclaimVerification.EventListener.EventMap, number> = {
+    sessionIdentityUpdate: 0,
+  };
+
+  override addEventListener<T extends keyof ReclaimVerification.EventListener.EventMap>(
+    type: T,
+    listener: ReclaimVerification.EventListener.EventListener<T>
+  ): ReclaimVerification.EventListener.CancelEventSubscription {
+    let subscriptionPromise: Promise<PluginListenerHandle>;
+    switch (type) {
+      case 'sessionIdentityUpdate':
+        subscriptionPromise = ReclaimInAppCapacitorSdk.addListener('onSessionIdentityUpdate', (param) => {
+          try {
+            listener(param as ReclaimVerification.EventListener.EventMap[T]);
+          } catch (_) {
+            // ignore listener errors
+          }
+        });
+        ReclaimInAppCapacitorSdk.startEventSubscription({ event: type });
+        PlatformImpl.listenersCount[type] = PlatformImpl.listenersCount[type] + 1;
+        break;
+      default:
+        throw new Error('Tried to subscribe to an unknown event');
+    }
+
+    const cancelSubscription = () => {
+      PlatformImpl.listenersCount[type] = PlatformImpl.listenersCount[type] - 1;
+      subscriptionPromise.then((sub) => sub.remove()).catch(() => { /* ignore */ });
+      if (PlatformImpl.listenersCount[type] <= 0) {
+        PlatformImpl.listenersCount[type] = 0;
+        try {
+          ReclaimInAppCapacitorSdk.removeEventSubscription({ event: type });
+        } catch (error) {
+          // ignore subscription removal errors
+        }
+      }
+    };
+
+    return cancelSubscription;
   }
 }

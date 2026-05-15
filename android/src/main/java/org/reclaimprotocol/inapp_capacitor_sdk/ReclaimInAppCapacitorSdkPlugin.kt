@@ -13,6 +13,7 @@ import org.json.JSONObject
 import org.reclaimprotocol.inapp_sdk.ReclaimOverrides
 import org.reclaimprotocol.inapp_sdk.ReclaimSessionStatus
 import org.reclaimprotocol.inapp_sdk.ReclaimVerification
+import org.reclaimprotocol.inapp_sdk.ReclaimVerification.Request.ProviderVersion
 import java.lang.Exception
 import java.util.UUID
 
@@ -46,10 +47,7 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
             userInfoMap.put("errorType", errorType)
             userInfoMap.put("sessionId", exception.sessionId)
             userInfoMap.put("didSubmitManualVerification", exception.didSubmitManualVerification)
-            userInfoMap.put(
-                "reason",
-                if (exception is ReclaimVerification.ReclaimVerificationException.Failed) exception.reason else null
-            )
+            userInfoMap.put("reason", exception.reason)
             promise?.reject("Verification Error", "VERIFICATION_ERROR", exception, userInfoMap)
         }
 
@@ -89,8 +87,12 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                     }
                 }
             }
-            val acceptAiProviders = getBoolean(request, "acceptAiProviders")
-            val webhookUrl = getString(request, "webhookUrl")
+            val providerVersion = request.getJSObject("providerVersion").let { pv ->
+                ProviderVersion(
+                    resolvedVersion = getString(pv, "resolvedVersion") ?: "",
+                    versionExpression = getString(pv, "versionExpression") ?: ""
+                )
+            }
             if (appId.isNullOrBlank() && secret.isNullOrBlank()) {
                 verificationRequest = ReclaimVerification.Request.fromManifestMetaData(
                     context = _applicationContext,
@@ -102,8 +104,7 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                         signature = getString(session, "signature") ?: "",
                     ),
                     parameters = parameters,
-                    acceptAiProviders = acceptAiProviders ?: false,
-                    webhookUrl = webhookUrl,
+                    providerVersion = providerVersion,
                 )
             } else {
                 verificationRequest = ReclaimVerification.Request(
@@ -117,8 +118,7 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                         signature = getString(session, "signature") ?: "",
                     ),
                     parameters = parameters,
-                    acceptAiProviders = acceptAiProviders ?: false,
-                    webhookUrl = webhookUrl,
+                    providerVersion = providerVersion,
                 )
             }
             ReclaimVerification.startVerification(
@@ -141,6 +141,26 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
         runOnUiQueueThread {
             ReclaimVerification.startVerificationFromUrl(
                 context = _applicationContext, requestUrl = requestUrl, handler = handler
+            )
+        }
+    }
+
+    @PluginMethod
+    fun startVerificationFromJson(call: PluginCall) {
+        Log.d(NAME, "startVerificationFromJson")
+        val templateJsonString = call.getString("template")
+        if (templateJsonString == null) {
+            call.reject("template is null", IllegalArgumentException("template is null"))
+            return
+        }
+        val templateJson = HashMap<Any?, Any?>()
+        JSONObject(templateJsonString).toMap().forEach { (key, value) ->
+            templateJson[key] = value
+        }
+        val handler = ReclaimVerificationResultHandlerImpl(call)
+        runOnUiQueueThread {
+            ReclaimVerification.startVerificationFromJson(
+                context = _applicationContext, template = templateJson, handler = handler
             )
         }
     }
@@ -177,11 +197,24 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
     @PluginMethod
     fun setVerificationOptions(call: PluginCall) {
         val inputOptions = getMap(call.data, "options")
-        var options:  ReclaimVerification.VerificationOptions? = null
+        var options: ReclaimVerification.VerificationOptions? = null
         if (inputOptions != null) {
-            val canUseAttestorAuthRequestProvider = getBoolean(inputOptions, "canUseAttestorAuthenticationRequest") == true;
+            val canUseAttestorAuthRequestProvider =
+                getBoolean(inputOptions, "canUseAttestorAuthenticationRequest") == true
+            val claimCreationType: ReclaimVerification.VerificationOptions.ClaimCreationType =
+                when (getString(inputOptions, "claimCreationType")) {
+                    "meChain" -> ReclaimVerification.VerificationOptions.ClaimCreationType.ME_CHAIN
+                    else -> ReclaimVerification.VerificationOptions.ClaimCreationType.STANDALONE
+                }
+            val canAutoSubmit = getBoolean(inputOptions, "canAutoSubmit") ?: true
+            val isCloseButtonVisible = getBoolean(inputOptions, "isCloseButtonVisible") ?: true
+            val locale = getString(inputOptions, "locale")
+            val useTeeOperator = getBoolean(inputOptions, "useTeeOperator")
             options = ReclaimVerification.VerificationOptions(
-                canDeleteCookiesBeforeVerificationStarts = getBoolean(inputOptions, "canDeleteCookiesBeforeVerificationStarts") ?: true,
+                canDeleteCookiesBeforeVerificationStarts = getBoolean(
+                    inputOptions,
+                    "canDeleteCookiesBeforeVerificationStarts"
+                ) ?: true,
                 attestorAuthRequestProvider = if (canUseAttestorAuthRequestProvider) {
                     object : ReclaimVerification.VerificationOptions.AttestorAuthRequestProvider {
                         override fun fetchAttestorAuthenticationRequest(
@@ -189,7 +222,10 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                             callback: (Result<String>) -> Unit
                         ) {
                             val args = JSObject()
-                            args.put("reclaimHttpProviderJsonString", JSONObject(reclaimHttpProvider).toString())
+                            args.put(
+                                "reclaimHttpProviderJsonString",
+                                JSONObject(reclaimHttpProvider).toString()
+                            )
                             val replyId = UUID.randomUUID().toString()
                             args.put("replyId", replyId)
                             replyWithString[replyId] = callback
@@ -199,18 +235,34 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                 } else {
                     null
                 },
-                claimCreationType = when (getString(inputOptions, "claimCreationType")) {
-                    "meChain" -> ReclaimVerification.VerificationOptions.ClaimCreationType.ME_CHAIN
-                    else -> ReclaimVerification.VerificationOptions.ClaimCreationType.STANDALONE
-                },
-                canAutoSubmit = getBoolean(inputOptions, "canAutoSubmit") ?: true,
-                isCloseButtonVisible = getBoolean(inputOptions, "isCloseButtonVisible") ?: true,
+                claimCreationType = claimCreationType,
+                canAutoSubmit = canAutoSubmit,
+                isCloseButtonVisible = isCloseButtonVisible,
+                locale = locale,
+                useTeeOperator = useTeeOperator
             )
         }
         runOnUiQueueThread {
             ReclaimVerification.setVerificationOptions(
                 context = _applicationContext,
                 options = options
+            ) { result ->
+                result.onSuccess {
+                    call.resolve(null)
+                }.onFailure { error ->
+                    onPlatformException(call, error)
+                }
+            }
+        }
+    }
+
+    @PluginMethod
+    fun setConsoleLogging(call: PluginCall) {
+        val enabled = call.getBoolean("enabled") == true
+        runOnUiQueueThread {
+            ReclaimVerification.setConsoleLogging(
+                context = _applicationContext,
+                enabled = enabled
             ) { result ->
                 result.onSuccess {
                     call.resolve(null)
@@ -260,6 +312,54 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
     }
 
     @PluginMethod
+    fun startEventSubscription(call: PluginCall) {
+        val event = call.getString("event")
+        when (event) {
+            "sessionIdentityUpdate" -> {
+                runOnUiQueueThread {
+                    ReclaimVerification.setOverrides(
+                        context = _applicationContext,
+                        provider = null,
+                        featureOptions = null,
+                        logConsumer = null,
+                        sessionManagement = null,
+                        appInfo = null,
+                        capabilityAccessToken = null,
+                        sessionIdentityUpdateHandler = object : ReclaimOverrides.SessionIdentityUpdateHandler {
+                            override fun onSessionIdentityUpdate(identity: ReclaimVerification.ReclaimSessionIdentity) {
+                                val map = JSObject()
+                                map.put("appId", identity.appId)
+                                map.put("providerId", identity.providerId)
+                                map.put("sessionId", identity.sessionId)
+                                notifyListeners("onSessionIdentityUpdate", map)
+                            }
+                        },
+                    ) { result ->
+                        result.onSuccess {
+                            Log.d(NAME, "(startEventSubscription:sessionIdentityUpdate) Success")
+                            call.resolve()
+                        }.onFailure { error ->
+                            Log.d(NAME, "(startEventSubscription:sessionIdentityUpdate) Failure", error)
+                            call.resolve()
+                        }
+                    }
+                }
+            }
+
+            else -> {
+                Log.w(NAME, "(startEventSubscription) Unknown event subscription requested: $event")
+                call.resolve()
+            }
+        }
+    }
+
+    @PluginMethod
+    fun removeEventSubscription(call: PluginCall) {
+        // do nothing for now, clearOverrides clear everything atm.
+        call.resolve()
+    }
+
+    @PluginMethod
     fun ping(call: PluginCall) {
         val ret = JSObject()
         ret.put("value", implementation.ping())
@@ -281,24 +381,22 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                 provider = if (provider == null) null else (
                         if (hasValue(provider, "jsonString"))
                             ReclaimOverrides.ProviderInformation.FromJsonString(
-                                requireString(
-                                    provider, "jsonString"
-                                )
+                                requireString(provider, "jsonString")
                             )
                         else if (hasValue(provider, "url"))
                             ReclaimOverrides.ProviderInformation.FromUrl(
-                                requireString(
-                                    provider, "url"
-                                )
+                                requireString(provider, "url")
                             )
                         else if (getBoolean(provider, "canFetchProviderInformationFromHost") == true)
-                            ReclaimOverrides.ProviderInformation.FromCallback(object : ReclaimOverrides.ProviderInformation.FromCallback.Handler {
+                            ReclaimOverrides.ProviderInformation.FromCallback(object :
+                                ReclaimOverrides.ProviderInformation.FromCallback.Handler {
                                 override fun fetchProviderInformation(
                                     appId: String,
                                     providerId: String,
                                     sessionId: String,
                                     signature: String,
                                     timestamp: String,
+                                    resolvedVersion: String,
                                     callback: (Result<String>) -> Unit
                                 ) {
                                     val args = JSObject()
@@ -307,6 +405,7 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                                     args.put("sessionId", sessionId)
                                     args.put("signature", signature)
                                     args.put("timestamp", timestamp)
+                                    args.put("resolvedVersion", resolvedVersion)
                                     val replyId = UUID.randomUUID().toString()
                                     args.put("replyId", replyId)
                                     replyWithString[replyId] = callback
@@ -326,7 +425,31 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                         featureOptions, "sessionTimeoutForManualVerificationTrigger"
                     ),
                     attestorBrowserRpcUrl = getString(featureOptions, "attestorBrowserRpcUrl"),
-                    isAIFlowEnabled = getBoolean(featureOptions, "isAIFlowEnabled")
+                    isAIFlowEnabled = getBoolean(featureOptions, "isAIFlowEnabled"),
+                    manualReviewMessage = getString(featureOptions, "manualReviewMessage"),
+                    loginPromptMessage = getString(featureOptions, "loginPromptMessage"),
+                    useTEE = getBoolean(featureOptions, "useTEE"),
+                    interceptorOptions = getString(featureOptions, "interceptorOptions"),
+                    claimCreationTimeoutDurationInMins = getLong(
+                        featureOptions, "claimCreationTimeoutDurationInMins"
+                    ),
+                    sessionNoActivityTimeoutDurationInMins = getLong(
+                        featureOptions, "sessionNoActivityTimeoutDurationInMins"
+                    ),
+                    aiProviderNoActivityTimeoutDurationInSecs = getLong(
+                        featureOptions, "aiProviderNoActivityTimeoutDurationInSecs"
+                    ),
+                    pageLoadedCompletedDebounceTimeoutMs = getLong(
+                        featureOptions, "pageLoadedCompletedDebounceTimeoutMs"
+                    ),
+                    potentialLoginTimeoutS = getLong(featureOptions, "potentialLoginTimeoutS"),
+                    screenshotCaptureIntervalSeconds = getLong(
+                        featureOptions, "screenshotCaptureIntervalSeconds"
+                    ),
+                    teeUrls = getString(featureOptions, "teeUrls"),
+                    privacyPolicyUrl = getString(featureOptions, "privacyPolicyUrl"),
+                    termsOfServiceUrl = getString(featureOptions, "termsOfServiceUrl"),
+                    potentialFailureReasonsUrl = getString(featureOptions, "potentialFailureReasonsUrl")
                 ),
                 logConsumer = if (logConsumer == null) null else ReclaimOverrides.LogConsumer(
                     logHandler = if (getBoolean(logConsumer, "enableLogHandler") != true) null else object :
@@ -350,16 +473,30 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                         providerId: String,
                         timestamp: String,
                         signature: String,
-                        callback: (Result<String>) -> Unit
+                        providerVersion: String,
+                        callback: (Result<ReclaimOverrides.SessionManagement.InitResponse>) -> Unit
                     ) {
                         val args = JSObject()
                         args.put("appId", appId)
                         args.put("providerId", providerId)
                         args.put("timestamp", timestamp)
                         args.put("signature", signature)
+                        args.put("providerVersion", providerVersion)
                         val replyId = UUID.randomUUID().toString()
                         args.put("replyId", replyId)
-                        replyWithString[replyId] = callback
+                        replyWithString[replyId] = { it ->
+                            callback(it.fold(onSuccess = { value ->
+                                val parsed = JSONObject(value)
+                                Result.success(
+                                    ReclaimOverrides.SessionManagement.InitResponse(
+                                        sessionId = parsed.optString("sessionId", ""),
+                                        resolvedProviderVersion = parsed.optString("resolvedProviderVersion", "")
+                                    )
+                                )
+                            }, onFailure = { error ->
+                                Result.failure(error)
+                            }))
+                        }
                         notifyListeners("onSessionCreateRequest", args)
                     }
 
@@ -377,7 +514,6 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                     override fun updateSession(
                         sessionId: String, status: ReclaimSessionStatus, callback: (Result<Boolean>) -> Unit
                     ) {
-                        status.name
                         val args = JSObject()
                         args.put("sessionId", sessionId)
                         args.put("status", status.name)
@@ -391,6 +527,7 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
                     appName = requireString(appInfo, "appName"),
                     appImageUrl = requireString(appInfo, "appImageUrl"),
                     isRecurring = getBoolean(appInfo, "isRecurring") ?: false,
+                    theme = getString(appInfo, "theme")
                 ),
                 capabilityAccessToken = capabilityAccessToken
             ) { result ->
@@ -424,9 +561,7 @@ class ReclaimInAppCapacitorSdkPlugin : Plugin() {
             if (exception is Exception) {
                 promise?.reject("Unexpected Error", "PLATFORM_ERROR", exception)
             } else {
-                promise?.reject("Unexpected Error", "PLATFORM_ERROR", object: Exception(exception.message) {
-                    
-                })
+                promise?.reject("Unexpected Error", "PLATFORM_ERROR", object : Exception(exception.message) {})
             }
         }
     }
