@@ -1,4 +1,4 @@
-import { Plugin } from "@capacitor/core";
+import { Plugin, PluginListenerHandle } from "@capacitor/core";
 
 export interface SessionInformation {
   /**
@@ -33,21 +33,21 @@ export interface Request {
    * The Reclaim application ID for the verification process.
    * If not provided, the appId will be fetched from:
    * - the `AndroidManifest.xml` metadata along with secret on android:
-   * 
+   *
    * ```xml
    * <meta-data android:name="org.reclaimprotocol.inapp_sdk.APP_ID"
-   *            android:value="YOUR_RECLAIM_APP_ID" />
+   *            android:value="YOUR_RECLAIM_APP_ID" />
    * ```
-   * 
+   *
    * - the `ReclaimInAppSDKParam.ReclaimAppId` in Info.plist along with secret on iOS:
-   * 
+   *
    * ```xml
    * <key>ReclaimInAppSDKParam</key>
    * <dict>
-   *    <key>ReclaimAppId</key>
-   *    <string>YOUR_RECLAIM_APP_ID</string>
-   *    <key>ReclaimAppSecret</key>
-   *    <string>YOUR_RECLAIM_APP_SECRET</string>
+   *    <key>ReclaimAppId</key>
+   *    <string>YOUR_RECLAIM_APP_ID</string>
+   *    <key>ReclaimAppSecret</key>
+   *    <string>YOUR_RECLAIM_APP_SECRET</string>
    * </dict>
    * ```
    */
@@ -57,21 +57,21 @@ export interface Request {
    * The Reclaim application secret for the verification process.
    * If not provided, the secret will be fetched from:
    * - the `AndroidManifest.xml` metadata along with appId on android:
-   * 
+   *
    * ```xml
    * <meta-data android:name="org.reclaimprotocol.inapp_sdk.APP_SECRET"
-   *            android:value="YOUR_RECLAIM_APP_SECRET" />
+   *            android:value="YOUR_RECLAIM_APP_SECRET" />
    * ```
-   * 
+   *
    * - the `ReclaimInAppSDKParam.ReclaimAppSecret` in Info.plist along with appId on iOS:
-   * 
+   *
    * ```xml
    * <key>ReclaimInAppSDKParam</key>
    * <dict>
-   *    <key>ReclaimAppId</key>
-   *    <string>YOUR_RECLAIM_APP_ID</string>
-   *    <key>ReclaimAppSecret</key>
-   *    <string>YOUR_RECLAIM_APP_SECRET</string>
+   *    <key>ReclaimAppId</key>
+   *    <string>YOUR_RECLAIM_APP_ID</string>
+   *    <key>ReclaimAppSecret</key>
+   *    <string>YOUR_RECLAIM_APP_SECRET</string>
    * </dict>
    * ```
    */
@@ -97,8 +97,15 @@ export interface Request {
    */
   parameters?: { [key: string]: string }; // Use index signature for Map
 
-  acceptAiProviders?: boolean; // Optional
-  webhookUrl?: string | null; // Optional and nullable
+  /**
+   * The version of the provider to use in verification
+   */
+  providerVersion?: ProviderVersion | null; // Optional
+}
+
+export interface ProviderVersion {
+  resolvedVersion: string;
+  versionExpression: string;
 }
 
 /**
@@ -164,10 +171,63 @@ export interface FeatureOptions {
   /**
    * Whether AI flow is enabled.
    * Optional, defaults to null.
-   * 
+   *
    * @deprecated Removed.
    */
   isAIFlowEnabled?: boolean | null;
+
+  /**
+   * Message to display when the user submitting a verification session for manual review.
+   * Optional, defaults to null.
+   */
+  manualReviewMessage?: string | null;
+
+  /**
+   * Message to display when the user is logging in.
+   */
+  loginPromptMessage?: string | null;
+
+  /**
+   * Whether to use TEE.
+   */
+  useTEE?: boolean | null;
+
+  /**
+   * Interceptor options.
+   */
+  interceptorOptions?: string | null;
+
+  claimCreationTimeoutDurationInMins?: number | null;
+
+  sessionNoActivityTimeoutDurationInMins?: number | null;
+
+  aiProviderNoActivityTimeoutDurationInSecs?: number | null;
+
+  pageLoadedCompletedDebounceTimeoutMs?: number | null;
+
+  potentialLoginTimeoutS?: number | null;
+
+  screenshotCaptureIntervalSeconds?: number | null;
+
+  /**
+   * Hosted TEE services Url that participate in Reclaim's TEE+MPC protocol
+   */
+  teeUrls?: string | null;
+
+  /**
+   * Privacy policy url
+   */
+  privacyPolicyUrl?: string | null;
+
+  /**
+   * Terms of service url
+   */
+  termsOfServiceUrl?: string | null;
+
+  /**
+   * Potential failure reasons url
+   */
+  potentialFailureReasonsUrl?: string | null;
 }
 
 export interface LogConsumer {
@@ -208,13 +268,19 @@ export interface ReclaimAppInfo {
    * Optional, defaults to false.
    */
   isRecurring?: boolean;
+
+  /**
+   * The theme of the application.
+   * Optional, defaults to null.
+   */
+  theme?: string | null;
 }
 
 export interface SessionManagement {
   /**
    * Whether to enable SDK session management.
    * Optional, defaults to true.
-   * 
+   *
    * When false, a handler must be provided. We'll not let SDK manage sessions in this case.
    */
   enableSdkSessionManagement?: boolean;
@@ -269,6 +335,10 @@ export interface SessionCreateRequestEvent {
    */
   signature: string;
   /**
+   * The provider version for the verification attempt
+   */
+  providerVersion: string;
+  /**
    * internal
    */
   readonly replyId: string;
@@ -283,6 +353,10 @@ export interface SessionUpdateRequestEvent {
    * The status type of this session event
    */
   status: string;
+  /**
+   * session update metadata as JSON string
+   */
+  metadata?: string;
   /**
    * internal
    */
@@ -304,6 +378,7 @@ export interface ProviderInformationRequest {
   sessionId: string;
   signature: string;
   timestamp: string;
+  resolvedVersion: string;
   /**
    * internal
    */
@@ -327,10 +402,33 @@ export interface VerificationOptions {
    * Whether the close button is visible. Defaults to true.
    */
   isCloseButtonVisible: boolean;
+
+  /**
+   * A language code & Country code for localization that should be enforced in the verification flow.
+   */
+  locale?: string | null;
+
+  /**
+   * Enables use of Reclaim's TEE+MPC protocol for HTTP Request claim verification and
+   * attestation.
+   *
+   * When set to `true`, the verification will use Trusted Execution Environment
+   * (TEE) with Multi-Party Computation (MPC) for enhanced security.
+   *
+   * When set to `false`, the standard Reclaim's proxy attestor verification flow is used.
+   *
+   * When `null` (default), inappsdk decides whether to use TEE based on
+   * a feature flag.
+   */
+  useTeeOperator?: boolean | null;
 }
 
 export interface VerificationOptionsOptional {
   options?: VerificationOptions | null;
+}
+
+export interface SetConsoleLoggingOptions {
+  enabled: boolean;
 }
 
 export interface ReclaimAttestorAuthRequest {
@@ -344,10 +442,22 @@ export interface ReclaimAttestorAuthRequest {
 export interface ReclaimInAppCapacitorSdkPlugin extends Plugin {
   startVerification(request: Request): Promise<Response>;
   startVerificationFromUrl(requestUrl: { value: string }): Promise<Response>;
+  startVerificationFromJson(args: { template: string }): Promise<Response>;
   setOverrides(overrides: Overrides): Promise<void>;
   clearAllOverrides(): Promise<void>;
   setVerificationOptions(args: VerificationOptionsOptional): Promise<void>;
+  setConsoleLogging(args: SetConsoleLoggingOptions): Promise<void>;
   reply(args: { replyId: string, reply: boolean }): void;
   replyWithString(args: { replyId: string, value: string }): void;
+  startEventSubscription(args: { event: string }): Promise<void>;
+  removeEventSubscription(args: { event: string }): Promise<void>;
   ping(): Promise<{ value: boolean }>;
+
+  addListener(eventName: 'onLogs', listener: (event: { value: string }) => void): Promise<PluginListenerHandle>;
+  addListener(eventName: 'onSessionLogs', listener: (event: SessionLogEvent) => void): Promise<PluginListenerHandle>;
+  addListener(eventName: 'onSessionCreateRequest', listener: (event: SessionCreateRequestEvent) => void): Promise<PluginListenerHandle>;
+  addListener(eventName: 'onSessionUpdateRequest', listener: (event: SessionUpdateRequestEvent) => void): Promise<PluginListenerHandle>;
+  addListener(eventName: 'onProviderInformationRequest', listener: (event: ProviderInformationRequest) => void): Promise<PluginListenerHandle>;
+  addListener(eventName: 'onReclaimAttestorAuthRequest', listener: (event: ReclaimAttestorAuthRequest) => void): Promise<PluginListenerHandle>;
+  addListener(eventName: 'onSessionIdentityUpdate', listener: (event: ReclaimSessionIdentityUpdate) => void): Promise<PluginListenerHandle>;
 }
