@@ -1,6 +1,6 @@
 # @reclaimprotocol/inapp-capacitor-sdk
 
-![NPM Version](https://img.shields.io/npm/v/%40reclaimprotocol%2Finapp-capacitor-sdk)
+[![NPM Version](https://img.shields.io/npm/v/%40reclaimprotocol%2Finapp-capacitor-sdk)](https://www.npmjs.com/package/@reclaimprotocol/inapp-capacitor-sdk)
 
 This SDK allows you to integrate Reclaim's in-app verification process into your Capacitor application.
 
