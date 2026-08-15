@@ -190,7 +190,9 @@ import ReclaimInAppSdk
       .init(
         logHandler: logConsumer.logHandler,
         canSdkCollectTelemetry: logConsumer.canSdkCollectTelemetry,
-        canSdkPrintLogs: logConsumer.canSdkPrintLogs?.boolValue
+        canSdkPrintLogs: logConsumer.canSdkPrintLogs?.boolValue,
+        logLevel: logConsumer.logLevel,
+        canLogMetadata: logConsumer.canLogMetadata?.boolValue
       )
     } else {
       nil
@@ -488,18 +490,44 @@ public typealias OverridenProviderCallback = (
 }
 
 @objc(OverridenLogConsumer) public class OverridenLogConsumer: NSObject {
+  /**
+   * Handler for consuming logs exported from the SDK.
+   */
   @objc public let logHandler: OverridenLogHandler?
+  /**
+   * When enabled, logs are sent to reclaim that can be used to help you.
+   * Defaults to true.
+   */
   @objc public let canSdkCollectTelemetry: Bool
+  /**
+   * Defaults to enabled when not in release mode.
+   * Type: Bool.
+   */
   @objc public let canSdkPrintLogs: NSNumber?
+  /**
+   * When provided, changes the minimum log level.
+   * Type: String.
+   */
+  @objc public let logLevel: String?
+  /**
+   * Whether metadata should also be included in logs.
+   * Defaults to false.
+   * Type: Bool.
+   */
+  @objc public let canLogMetadata: NSNumber?
 
   @objc public init(
     logHandler: OverridenLogHandler? = nil,
     canSdkCollectTelemetry: Bool = true,
-    canSdkPrintLogs: NSNumber? = nil
+    canSdkPrintLogs: NSNumber? = nil,
+    logLevel: String? = nil,
+    canLogMetadata: NSNumber? = nil
   ) {
     self.logHandler = logHandler
     self.canSdkCollectTelemetry = canSdkCollectTelemetry
     self.canSdkPrintLogs = canSdkPrintLogs
+    self.logLevel = logLevel
+    self.canLogMetadata = canLogMetadata
   }
 }
 
@@ -626,6 +654,10 @@ public typealias OverridenLogSessionCallback = (
         statusString = "PROOF_MANUAL_VERIFICATION_SUBMITTED"
       case .AI_PROOF_SUBMITTED:
         statusString = "AI_PROOF_SUBMITTED"
+      case .USER_INTERACTED:
+        statusString = "USER_INTERACTED"
+      case .USER_TYPED:
+        statusString = "USER_TYPED"
       }
       let replyId = Api.setReplyCallback(completion)
       self._updateSession(sessionId, statusString!, replyId)

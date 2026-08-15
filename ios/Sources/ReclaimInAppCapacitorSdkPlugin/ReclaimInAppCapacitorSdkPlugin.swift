@@ -205,10 +205,15 @@ public class ReclaimInAppCapacitorSdkPlugin: CAPPlugin, CAPBridgedPlugin {
                     let canSdkPrintLogs: Bool? = if let value = logConsumer["canSdkPrintLogs"] as? Bool? {
                         value
                     } else { nil }
+                    let canLogMetadata: Bool? = if let value = logConsumer["canLogMetadata"] as? Bool? {
+                        value
+                    } else { nil }
                     overridenLogConsumer = .init(
                         logHandler: logHandler,
                         canSdkCollectTelemetry: canSdkCollectTelemetry ?? true,
-                        canSdkPrintLogs: canSdkPrintLogs == nil ? nil : NSNumber(value: canSdkPrintLogs!)
+                        canSdkPrintLogs: canSdkPrintLogs == nil ? nil : NSNumber(value: canSdkPrintLogs!),
+                        logLevel: ReclaimInAppCapacitorSdkPlugin.toStringWhenNotEmpty(logConsumer["logLevel"] as? String),
+                        canLogMetadata: canLogMetadata == nil ? nil : NSNumber(value: canLogMetadata!)
                     )
                 }
 
