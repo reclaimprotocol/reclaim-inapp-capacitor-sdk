@@ -399,11 +399,13 @@ Interface representing Feature Options.
 
 #### LogConsumer
 
-| Prop                         | Type                 | Description                                                                            |
-| ---------------------------- | -------------------- | -------------------------------------------------------------------------------------- |
-| **`enableLogHandler`**       | <code>boolean</code> | Handler for consuming logs exported from the SDK. Defaults to false.                   |
-| **`canSdkCollectTelemetry`** | <code>boolean</code> | When enabled, logs are sent to reclaim that can be used to help you. Defaults to true. |
-| **`canSdkPrintLogs`**        | <code>boolean</code> | Defaults to enabled when not in release mode.                                          |
+| Prop                         | Type                        | Description                                                                                                                               |
+| ---------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **`enableLogHandler`**       | <code>boolean</code>        | Handler for consuming logs exported from the SDK. Defaults to false.                                                                      |
+| **`canSdkCollectTelemetry`** | <code>boolean</code>        | When enabled, logs are sent to reclaim that can be used to help you. Defaults to true.                                                    |
+| **`canSdkPrintLogs`**        | <code>boolean</code>        | Defaults to enabled when not in release mode.                                                                                             |
+| **`logLevel`**               | <code>string \| null</code> | When provided, can be used to change logLevel. Available levels are: ALL, FINEST, FINER, FINE, CONFIG, INFO, WARNING, SEVERE, SHOUT, OFF. |
+| **`canLogMetadata`**         | <code>boolean</code>        | Whether metadata should also be logged along with logs. Defaults to false.                                                                |
 
 
 #### SessionManagement
