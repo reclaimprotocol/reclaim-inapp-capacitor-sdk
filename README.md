@@ -1,5 +1,9 @@
-# @reclaimprotocol/inapp-capacitor-sdk
+# Reclaim InApp Capacitor SDK
 
+## @reclaimprotocol/inapp-capacitor-sdk
+
+[![Reclaim Capacitor SDK](https://img.shields.io/github/v/tag/reclaimprotocol/reclaim-inapp-capacitor-sdk.svg)](https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk)
+[![Documentation](https://img.shields.io/badge/read_the-docs-blue.svg)](https://docs.reclaimprotocol.org/inapp-sdks/capacitor)
 [![NPM Version](https://img.shields.io/npm/v/%40reclaimprotocol%2Finapp-capacitor-sdk)](https://www.npmjs.com/package/@reclaimprotocol/inapp-capacitor-sdk)
 
 This SDK allows you to integrate Reclaim's in-app verification process into your Capacitor application.
@@ -76,10 +80,10 @@ Some projects may require you to add the repositories to the root `build.gradle`
 
 ### iOS Setup
 
-1. Make sure to define a global platform for your project in your `Podfile` with version 13.0 or higher.
+1. Make sure to define a global platform for your project in your `Podfile` with version 14.0 or higher.
 
 ```
-platform :ios, '13.0' # or platform :ios, min_ios_version_supported
+platform :ios, '14.0' # or platform :ios, min_ios_version_supported
 ```
 
 Ignore if you already have this declaration in your `Podfile`.
@@ -94,13 +98,13 @@ Ignore if you already have this declaration in your `Podfile`.
 
 ```ruby
 # Cocoapods is the recommended way to install the SDK.
-pod 'ReclaimInAppSdk', '~> 0.7.0'
+pod 'ReclaimInAppSdk', '~> 0.42.1'
 ```
 
 ##### From a specific tag
 
 ```ruby
-pod 'ReclaimInAppSdk', :git => 'https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk.git', :tag => '0.7.0'
+pod 'ReclaimInAppSdk', :git => 'https://github.com/reclaimprotocol/reclaim-inapp-ios-sdk.git', :tag => '0.42.1'
 ```
 
 ##### From git HEAD
@@ -124,7 +128,7 @@ pod 'ReclaimInAppSdk', :git => 'https://github.com/reclaimprotocol/reclaim-inapp
 - After adding the dependency, your podfile may look like this:
 
 ```ruby
-platform :ios, '13.0'
+platform :ios, '14.0'
 
 # ... some podfile content (removed for brevity)
 
@@ -132,7 +136,7 @@ target 'App' do
   capacitor_pods
   # Add your Pods here
   # This is the line that you may need to add in your podfile.
-  pod 'ReclaimInAppSdk', '~> 0.7.0'
+  pod 'ReclaimInAppSdk', '~> 0.42.1'
 end
   # ... rest of the podfile. (removed for brevity)
 ```
@@ -318,8 +322,35 @@ error.reason
 error.innerError
 ```
 
+## Troubleshooting
+
+### Cronet errors on android without play services
+
+On android devices which don't have play services, you may get following errors in Android logs: `java.lang.RuntimeException: All available Cronet providers are disabled. A provider should be enabled before it can be used.`, `Google-Play-Services-Cronet-Provider is unavailable.`. This is because the Reclaim InApp SDK depends on cronet for making http requests.
+
+To fix this, you need to use embedded cronet in your android app by adding the following dependency in your `android/app/build.gradle` dependencies block:
+
+```gradle
+dependencies {
+    // ... other dependencies (not shown for brevity)
+    // Use embedded cronet
+    implementation("org.chromium.net:cronet-embedded:141.7340.3")
+}
+```
+
+### iOS build issues
+
+Incase you get errors which say `CocoaPods could not find compatible versions for pod "ReclaimInAppSdk"`, run the following in your project's `ios/` directory:
+
+```sh
+bundle exec pod update ReclaimInAppSdk
+# or
+pod update ReclaimInAppSdk
+```
+
 ## Migration
 
+- Migration steps for [0.42.1](https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/documentation/migration.md#0421)
 - Migration steps for [0.7.0](https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/documentation/migration.md#070)
 - Migration steps for [0.6.0](https://github.com/reclaimprotocol/reclaim-inapp-capacitor-sdk/blob/main/documentation/migration.md#060)
 
@@ -343,3 +374,7 @@ Note: Overriding again will clear previous overrides
 ## Contributing
 
 See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the repository and the development workflow.
+
+## License
+
+MIT
